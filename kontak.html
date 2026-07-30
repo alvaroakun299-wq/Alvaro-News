@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hubungi Kami</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 flex flex-col min-h-screen">
+  <header class="bg-white shadow-sm h-16 flex items-center justify-between px-8">
+    <span class="text-2xl font-bold text-indigo-600">Alvaro News</span>
+    <nav class="space-x-4">
+      <a href="index.html" class="hover:text-indigo-600">Beranda</a>
+      <a href="login.html" class="hover:text-indigo-600">Login</a>
+      <a href="kontak.html" class="text-indigo-600 font-medium">Kontak</a>
+    </nav>
+  </header>
+
+  <main class="max-w-xl mx-auto px-4 py-16 flex-grow">
+    <div class="bg-white p-8 rounded-lg shadow-sm border">
+      <h2 class="text-2xl font-bold mb-2">Hubungi Kami</h2>
+      <p class="text-gray-600 mb-6 text-sm">Punya pertanyaan, feedback, atau penawaran kerja sama? Sampaikan pesan Anda di bawah ini.</p>
+      
+      <form id="contactForm" onsubmit="submitForm(event)" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-1">Nama Lengkap</label>
+          <input type="text" id="name" required class="w-full border rounded px-3 py-2 text-sm focus:outline-indigo-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Email</label>
+          <input type="email" id="email" required class="w-full border rounded px-3 py-2 text-sm focus:outline-indigo-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Pesan</label>
+          <textarea id="message" rows="4" required class="w-full border rounded px-3 py-2 text-sm focus:outline-indigo-500"></textarea>
+        </div>
+        <button type="submit" id="submitBtn" class="w-full bg-indigo-600 text-white py-2 rounded font-medium hover:bg-indigo-700 transition">
+          Kirim Pesan
+        </button>
+        <p id="feedback" class="text-center text-sm hidden"></p>
+      </form>
+    </div>
+  </main>
+
+  <script src="config.js"></script>
+  <script>
+    async function submitForm(e) {
+      e.preventDefault();
+      const btn = document.getElementById("submitBtn");
+      const feedback = document.getElementById("feedback");
+      
+      btn.disabled = true;
+      btn.innerText = "Mengirim...";
+      
+      const payload = {
+        action: 'addMessage',
+        name: document.getElementById("name").value,
+        email: document.getElementById("email").value,
+        message: document.getElementById("message").value
+      };
+
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          feedback.className = "text-center text-sm text-green-600 font-medium mt-2";
+          feedback.innerText = "Pesan berhasil terkirim!";
+          document.getElementById("contactForm").reset();
+        } else {
+          feedback.className = "text-center text-sm text-red-600 font-medium mt-2";
+          feedback.innerText = "Gagal mengirim pesan.";
+        }
+      } catch (err) {
+        feedback.className = "text-center text-sm text-red-600 font-medium mt-2";
+        feedback.innerText = "Error koneksi.";
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Kirim Pesan";
+        feedback.classList.remove("hidden");
+      }
+    }
+  </script>
+</body>
+</html>

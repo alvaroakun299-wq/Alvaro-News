@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kategori Artikel - Portal Kreatif</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 flex flex-col min-h-screen">
+  <header class="bg-white shadow-sm sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <span class="text-2xl font-bold text-indigo-600">Alvaro News</span>
+      <nav class="hidden md:flex space-x-8 text-sm font-medium text-gray-600">
+        <a href="index.html" class="hover:text-indigo-600 transition">Beranda</a>
+        <a href="artikel.html" class="hover:text-indigo-600 transition">Artikel</a>
+        <a href="kategori.html" class="text-indigo-600">Kategori</a>
+        <a href="tentang.html" class="hover:text-indigo-600 transition">Tentang</a>
+        <a href="kontak.html" class="hover:text-indigo-600 transition">Kontak</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-grow">
+    <h1 id="catTitle" class="text-3xl font-extrabold mb-8 border-b-2 border-indigo-500 pb-2 text-gray-900">Telusuri Kategori</h1>
+    
+    <div id="filterSection" class="flex flex-wrap gap-2 mb-8">
+      <!-- Diisi daftar semua kategori -->
+    </div>
+
+    <div id="articlesGrid" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <p class="text-gray-500">Memilih kategori...</p>
+    </div>
+  </main>
+
+  <script src="config.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const catParam = urlParams.get('cat');
+      loadCategories(catParam);
+    });
+
+    async function loadCategories(activeCat) {
+      const filterDiv = document.getElementById("filterSection");
+      const grid = document.getElementById("articlesGrid");
+
+      try {
+        const [resArt, resCat] = await Promise.all([
+          fetch(`${API_URL}?action=getArticles`),
+          fetch(`${API_URL}?action=getCategories`)
+        ]);
+        const dataArt = await resArt.json();
+        const dataCat = await resCat.json();
+
+        if (dataArt.success && dataCat.success) {
+          // Render Filter Buttons
+          filterDiv.innerHTML = `<button onclick="renderCategoryFiltered('all')" class="px-4 py-2 text-sm font-medium rounded-full ${!activeCat ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Semua</button>` +
+            dataCat.data.map(cat => `
+              <button onclick="renderCategoryFiltered('${cat.Name}')" class="px-4 py-2 text-sm font-medium rounded-full ${activeCat === cat.Name ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">${cat.Name}</button>
+            `).join('');
+
+          window.allArticles = dataArt.data;
+          renderCategoryFiltered(activeCat || 'all');
+        }
+      } catch (err) {
+        grid.innerHTML = `<p class="text-red-500">Terjadi kesalahan pemuatan data.</p>`;
+      }
+    }
+
+    function renderCategoryFiltered(catName) {
+      const grid = document.getElementById("articlesGrid");
+      const catTitle = document.getElementById("catTitle");
+      
+      let filtered = window.allArticles;
+      if (catName !== 'all') {
+        filtered = window.allArticles.filter(art => art.Category === catName);
+        catTitle.innerText = `Kategori: ${catName}`;
+      } else {
+        catTitle.innerText = `Semua Kategori`;
+      }
+
+      // Update active button classes
+      const buttons = document.querySelectorAll("#filterSection button");
+      buttons.forEach(btn => {
+        if (btn.innerText === catName || (catName === 'all' && btn.innerText === 'Semua')) {
+          btn.className = "px-4 py-2 text-sm font-medium rounded-full bg-indigo-600 text-white";
+        } else {
+          btn.className = "px-4 py-2 text-sm font-medium rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200";
+        }
+      });
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `<p class="col-span-3 text-center text-gray-500 py-12">Belum ada artikel di kategori ini.</p>`;
+        return;
+      }
+
+      grid.innerHTML = filtered.map(art => `
+        <article class="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden flex flex-col hover:shadow-md transition">
+          <img src="${art.Thumbnail}" class="h-44 w-full object-cover">
+          <div class="p-5 flex flex-col justify-between flex-grow">
+            <div>
+              <span class="text-xs font-semibold text-indigo-600 uppercase">${art.Category}</span>
+              <h3 class="text-lg font-bold text-gray-900 mt-1 mb-2 line-clamp-2">
+                <a href="artikel.html?id=${art.ID}" class="hover:text-indigo-600">${art.Title}</a>
+              </h3>
+              <p class="text-sm text-gray-600 line-clamp-2 mb-4">${art.Summary}</p>
+            </div>
+            <div class="text-xs text-gray-500 border-t pt-3 flex justify-between">
+              <span>${art.Author}</span>
+              <span>${art.Date}</span>
+            </div>
+          </div>
+        </article>
+      `).join('');
+    }
+  </script>
+</body>
+</html>

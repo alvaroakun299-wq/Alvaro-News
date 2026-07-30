@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CMS Admin Panel</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    // === VALIDASI SESI SEBELUM RENDERING HALAMAN ===
+    const adminToken = sessionStorage.getItem("adminToken");
+    if (!adminToken) {
+      window.location.href = "login.html";
+    }
+  </script>
+</head>
+<body class="bg-gray-100 text-gray-800 flex h-screen overflow-hidden">
+
+  <!-- Sidebar Nav -->
+  <aside class="w-64 bg-gray-900 text-gray-300 flex flex-col justify-between">
+    <div class="p-6">
+      <h2 class="text-white text-2xl font-bold flex items-center gap-2 mb-8"><i class="fa-solid fa-gauge-high text-indigo-500"></i> Admin Panel</h2>
+      <nav class="space-y-2">
+        <button onclick="showSection('dashboard')" class="w-full text-left px-4 py-2.5 rounded hover:bg-gray-800 flex items-center gap-3 transition">
+          <i class="fa-solid fa-house"></i> Dashboard
+        </button>
+        <button onclick="showSection('add-article')" class="w-full text-left px-4 py-2.5 rounded hover:bg-gray-800 flex items-center gap-3 transition">
+          <i class="fa-solid fa-plus"></i> Tambah Artikel
+        </button>
+        <button onclick="showSection('manage-articles')" class="w-full text-left px-4 py-2.5 rounded hover:bg-gray-800 flex items-center gap-3 transition">
+          <i class="fa-solid fa-list"></i> Kelola Artikel
+        </button>
+        <button onclick="showSection('manage-categories')" class="w-full text-left px-4 py-2.5 rounded hover:bg-gray-800 flex items-center gap-3 transition">
+          <i class="fa-solid fa-tags"></i> Kelola Kategori
+        </button>
+      </nav>
+    </div>
+    <div class="p-6 border-t border-gray-800 space-y-3">
+      <a href="index.html" class="text-sm hover:text-white flex items-center gap-2 transition"><i class="fa-solid fa-arrow-left"></i> Lihat Website</a>
+      <button onclick="logout()" class="w-full text-left text-sm text-red-400 hover:text-red-300 flex items-center gap-2 transition"><i class="fa-solid fa-power-off"></i> Keluar (Logout)</button>
+    </div>
+  </aside>
+
+  <!-- Main Content Wrapper -->
+  <main class="flex-grow p-10 overflow-y-auto">
+    
+    <!-- 1. Section: Dashboard / Statistik -->
+    <section id="dashboard-sec" class="space-y-6">
+      <h1 class="text-3xl font-extrabold text-gray-900">Dashboard Statistik</h1>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white p-6 rounded-lg shadow-sm border flex items-center justify-between">
+          <div>
+            <p class="text-gray-500 text-sm font-medium">Total Artikel</p>
+            <h2 class="text-4xl font-bold text-gray-900 mt-1" id="totalArt">0</h2>
+          </div>
+          <div class="p-4 bg-indigo-50 text-indigo-600 rounded-full text-2xl"><i class="fa-solid fa-newspaper"></i></div>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-sm border flex items-center justify-between">
+          <div>
+            <p class="text-gray-500 text-sm font-medium">Total Pembaca (Views)</p>
+            <h2 class="text-4xl font-bold text-gray-900 mt-1" id="totalViews">0</h2>
+          </div>
+          <div class="p-4 bg-green-50 text-green-600 rounded-full text-2xl"><i class="fa-solid fa-eye"></i></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Section: Tambah & Edit Artikel Form -->
+    <section id="add-article-sec" class="hidden max-w-3xl">
+      <h1 class="text-3xl font-extrabold text-gray-900 mb-6" id="formTitle">Tulis Artikel Baru</h1>
+      <form id="articleForm" onsubmit="saveArticle(event)" class="bg-white p-6 rounded-lg shadow border space-y-4">
+        <input type="hidden" id="artId">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-semibold mb-1">Judul Artikel</label>
+            <input type="text" id="title" required onkeyup="generateSlug()" class="w-full border rounded px-3 py-2 text-sm focus:outline-indigo-500">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold mb-1">Slug URL</label>
+            <input type="text" id="slug" required readonly class="w-full border bg-gray-50 rounded px-3 py-2 text-sm">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-semibold mb-1">Kategori</label>
+            <select id="category" required class="w-full border rounded px-3 py-2 text-sm focus:outline-indigo-500"></select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold mb-1">Penulis</label>
+            <input type="text" id="author" required class="w-full border rounded px-3 py-2 text-sm focus:outline-indigo-500">
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold mb-1">Ringkasan Singkat (Summary)</label>
+          <input type="text" id="summary" required class="w-full border rounded px-3 py-2 text-sm focus:outline-indigo-500">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold mb-1">Unggah Thumbnail (Maks. 3MB)</label>
+          <input type="file" id="thumbnailFile" accept="image/*" class="w-full text-sm">
+          <input type="hidden" id="thumbnailUrl">
+          <p class="text-xs text-gray-500 mt-1" id="uploadStatus">Kosongkan jika menggunakan link luar / tidak diganti.</p>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold mb-1">Isi Artikel</label>
+          <textarea id="content" rows="8" required class="w-full border rounded px-3 py-2 text-sm focus:outline-indigo-500" placeholder="Ketik isi artikel di sini..."></textarea>
+        </div>
+        <div class="flex gap-4">
+          <label class="flex items-center gap-2 text-sm">
+            <input type="checkbox" id="isEditorChoice"> Pilihan Editor
+          </label>
+          <label class="flex items-center gap-2 text-sm">
+            <select id="status" class="border rounded px-2 py-1">
+              <option value="Published">Publish</option>
+              <option value="Draft">Draft</option>
+            </select>
+          </label>
+        </div>
+        <button type="submit" id="saveBtn" class="bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-700 transition font-medium">
+          Simpan Artikel
+        </button>
+      </form>
+    </section>
+
+    <!-- 3. Section: Kelola Artikel (Tabel) -->
+    <section id="manage-articles-sec" class="hidden">
+      <h1 class="text-3xl font-extrabold text-gray-900 mb-6">Kelola Artikel</h1>
+      <div class="bg-white rounded-lg shadow overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200 text-sm">
+          <thead class="bg-gray-50 text-gray-700 uppercase font-bold">
+            <tr>
+              <th class="px-6 py-3 text-left">Judul</th>
+              <th class="px-6 py-3 text-left">Kategori</th>
+              <th class="px-6 py-3 text-left">Status</th>
+              <th class="px-6 py-3 text-left">Views</th>
+              <th class="px-6 py-3 text-center">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="articlesTableBody" class="divide-y divide-gray-100">
+            <!-- Diisi artikel secara dinamis -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 4. Section: Kelola Kategori -->
+    <section id="manage-categories-sec" class="hidden max-w-md">
+      <h1 class="text-3xl font-extrabold text-gray-900 mb-6">Kelola Kategori</h1>
+      <form onsubmit="addCategory(event)" class="bg-white p-6 rounded-lg shadow mb-6 space-y-4">
+        <div>
+          <label class="block text-sm font-semibold mb-1">Nama Kategori</label>
+          <input type="text" id="newCatName" required class="w-full border rounded px-3 py-2 text-sm focus:outline-indigo-500">
+        </div>
+        <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded text-sm hover:bg-indigo-700 transition">
+          Tambah Kategori
+        </button>
+      </form>
+      <div class="bg-white rounded shadow p-4">
+        <h3 class="font-bold mb-3">Daftar Kategori</h3>
+        <ul id="catList" class="divide-y text-sm"></ul>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="config.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      loadStats();
+      loadAllData();
+    });
+
+    function logout() {
+      sessionStorage.removeItem("adminToken");
+      window.location.href = "login.html";
+    }
+
+    function showSection(sec) {
+      document.getElementById("dashboard-sec").classList.add("hidden");
+      document.getElementById("add-article-sec").classList.add("hidden");
+      document.getElementById("manage-articles-sec").classList.add("hidden");
+      document.getElementById("manage-categories-sec").classList.add("hidden");
+
+      document.getElementById(`${sec}-sec`).classList.remove("hidden");
+    }
+
+    function generateSlug() {
+      const title = document.getElementById("title").value;
+      document.getElementById("slug").value = title.toLowerCase()
+        .replace(/[^a-z0-9 -]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-');
+    }
+
+    async function loadStats() {
+      try {
+        // GET membutuhkan token rahasia
+        const res = await fetch(`${API_URL}?action=getStats&token=${encodeURIComponent(adminToken)}`);
+        const json = await res.json();
+        if (json.success) {
+          document.getElementById("totalArt").innerText = json.data.totalArticles;
+          document.getElementById("totalViews").innerText = json.data.totalViews;
+        } else if (json.error === "Unauthorized") {
+          logout();
+        }
+      } catch (err) { console.error("Error stats", err); }
+    }
+
+    async function loadAllData() {
+      try {
+        const [resArt, resCat] = await Promise.all([
+          fetch(`${API_URL}?action=getAllArticles&token=${encodeURIComponent(adminToken)}`),
+          fetch(`${API_URL}?action=getCategories`)
+        ]);
+        const dataArt = await resArt.json();
+        const dataCat = await resCat.json();
+
+        if (dataArt.success) {
+          renderArticlesTable(dataArt.data);
+        } else if (dataArt.error === "Unauthorized") {
+          logout();
+        }
+        
+        if (dataCat.success) {
+          renderCategoriesSelect(dataCat.data);
+          renderCategoriesList(dataCat.data);
+        }
+      } catch (err) { console.error(err); }
+    }
+
+    function renderArticlesTable(articles) {
+      const tbody = document.getElementById("articlesTableBody");
+      tbody.innerHTML = articles.map(art => `
+        <tr class="hover:bg-gray-50">
+          <td class="px-6 py-4 font-semibold text-gray-900">${art.Title}</td>
+          <td class="px-6 py-4 text-gray-500">${art.Category}</td>
+          <td class="px-6 py-4"><span class="px-2 py-1 text-xs rounded-full font-bold ${art.Status === 'Published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">${art.Status}</span></td>
+          <td class="px-6 py-4 text-gray-500">${art.Views || 0}</td>
+          <td class="px-6 py-4 text-center space-x-2">
+            <button onclick="editArticlePre('${art.ID}')" class="text-blue-600 hover:text-blue-900 font-medium"><i class="fa-solid fa-pen-to-square"></i></button>
+            <button onclick="deleteArticle('${art.ID}')" class="text-red-600 hover:text-red-900 font-medium"><i class="fa-solid fa-trash"></i></button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function renderCategoriesSelect(categories) {
+      const select = document.getElementById("category");
+      select.innerHTML = categories.map(cat => `<option value="${cat.Name}">${cat.Name}</option>`).join('');
+    }
+
+    function renderCategoriesList(categories) {
+      const list = document.getElementById("catList");
+      list.innerHTML = categories.map(cat => `<li class="py-2 flex justify-between"><span>${cat.Name}</span> <span class="text-gray-400 text-xs">${cat.Slug}</span></li>`).join('');
+    }
+
+    async function handleImageUpload() {
+      const fileInput = document.getElementById("thumbnailFile");
+      if (fileInput.files.length === 0) return document.getElementById("thumbnailUrl").value;
+
+      const file = fileInput.files[0];
+      
+      // === AUDIT PERFORMA: Batasan kapasitas payload upload (3MB) ===
+      if (file.size > 3 * 1024 * 1024) {
+        throw new Error("Ukuran berkas gambar melampaui batas 3MB.");
+      }
+
+      const reader = new FileReader();
+      document.getElementById("uploadStatus").innerText = "Mengunggah gambar ke Drive...";
+      
+      const base64Promise = new Promise((resolve) => {
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.readAsDataURL(file);
+      });
+
+      const base64Data = await base64Promise;
+      
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'uploadImage',
+          token: adminToken, // Kirim token otentikasi
+          base64: base64Data,
+          mimeType: file.type,
+          filename: file.name
+        })
+      });
+
+      const resJson = await response.json();
+      if (resJson.success) {
+        document.getElementById("uploadStatus").innerText = "Gambar sukses diunggah ke Google Drive!";
+        return resJson.url;
+      } else {
+        throw new Error("Gagal mengunggah gambar");
+      }
+    }
+
+    async function saveArticle(e) {
+      e.preventDefault();
+      const saveBtn = document.getElementById("saveBtn");
+      saveBtn.disabled = true;
+      saveBtn.innerText = "Menyimpan...";
+
+      try {
+        const imageUrl = await handleImageUpload();
+        const id = document.getElementById("artId").value;
+        const isEdit = id !== "";
+
+        const articleObj = {
+          Title: document.getElementById("title").value,
+          Slug: document.getElementById("slug").value,
+          Summary: document.getElementById("summary").value,
+          Content: document.getElementById("content").value,
+          Category: document.getElementById("category").value,
+          Author: document.getElementById("author").value,
+          Status: document.getElementById("status").value,
+          IsEditorChoice: document.getElementById("isEditorChoice").checked,
+          Thumbnail: imageUrl || 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=500'
+        };
+
+        if (isEdit) articleObj.ID = id;
+
+        const payload = {
+          action: isEdit ? 'editArticle' : 'addArticle',
+          token: adminToken, // Kirim token otentikasi
+          article: articleObj
+        };
+
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+
+        if (result.success) {
+          alert("Artikel berhasil disimpan!");
+          document.getElementById("articleForm").reset();
+          document.getElementById("artId").value = "";
+          document.getElementById("uploadStatus").innerText = "";
+          loadAllData();
+          loadStats();
+          showSection('manage-articles');
+        } else {
+          alert("Gagal menyimpan: " + result.message);
+        }
+      } catch (err) {
+        alert("Error: " + err.message);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerText = "Simpan Artikel";
+      }
+    }
+
+    async function editArticlePre(id) {
+      document.getElementById("formTitle").innerText = "Edit Artikel";
+      const res = await fetch(`${API_URL}?action=getAllArticles&token=${encodeURIComponent(adminToken)}`);
+      const data = await res.json();
+      const art = data.data.find(item => item.ID === id);
+
+      if (art) {
+        document.getElementById("artId").value = art.ID;
+        document.getElementById("title").value = art.Title;
+        document.getElementById("slug").value = art.Slug;
+        document.getElementById("summary").value = art.Summary;
+        document.getElementById("content").value = art.Content;
+        document.getElementById("category").value = art.Category;
+        document.getElementById("author").value = art.Author;
+        document.getElementById("status").value = art.Status;
+        document.getElementById("thumbnailUrl").value = art.Thumbnail;
+        document.getElementById("isEditorChoice").checked = (art.IsEditorChoice === true || art.IsEditorChoice === 'TRUE');
+        
+        showSection('add-article');
+      }
+    }
+
+    async function deleteArticle(id) {
+      if (confirm("Apakah Anda yakin ingin menghapus artikel ini?")) {
+        try {
+          const res = await fetch(API_URL, {
+            method: 'POST',
+            body: JSON.stringify({ 
+              action: 'deleteArticle', 
+              token: adminToken, // Kirim token otentikasi
+              id: id 
+            })
+          });
+          const result = await res.json();
+          if (result.success) {
+            alert("Artikel sukses dihapus!");
+            loadAllData();
+            loadStats();
+          }
+        } catch (err) { alert("Gagal menghapus"); }
+      }
+    }
+
+    async function addCategory(e) {
+      e.preventDefault();
+      const name = document.getElementById("newCatName").value;
+      const slug = name.toLowerCase().replace(/\s+/g, '-');
+      
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ 
+          action: 'addCategory', 
+          token: adminToken, // Kirim token otentikasi
+          name, 
+          slug 
+        })
+      });
+      const result = await res.json();
+      if (result.success) {
+        alert("Kategori berhasil ditambahkan!");
+        document.getElementById("newCatName").value = "";
+        loadAllData();
+      }
+    }
+  </script>
+</body>
+</html>
