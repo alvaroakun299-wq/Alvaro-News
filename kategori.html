@@ -5,30 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Kategori Artikel - Portal Kreatif</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap');
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #fcfcfc;
+    }
+    .line-clamp-2 {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;  
+      overflow: hidden;
+    }
+  </style>
 </head>
-<body class="bg-gray-50 text-gray-800 flex flex-col min-h-screen">
-  <header class="bg-white shadow-sm sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-      <span class="text-2xl font-bold text-indigo-600">Alvaro News</span>
-      <nav class="hidden md:flex space-x-8 text-sm font-medium text-gray-600">
-        <a href="index.html" class="hover:text-indigo-600 transition">Beranda</a>
-        <a href="artikel.html" class="hover:text-indigo-600 transition">Artikel</a>
-        <a href="kategori.html" class="text-indigo-600">Kategori</a>
-        <a href="tentang.html" class="hover:text-indigo-600 transition">Tentang</a>
-        <a href="kontak.html" class="hover:text-indigo-600 transition">Kontak</a>
+<body class="bg-[#fafafa] text-slate-900 flex flex-col min-h-screen antialiased">
+  <header class="bg-white border-b border-gray-100 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+      <span class="text-2xl font-black tracking-tight text-slate-900">ALVARO <span class="font-light text-gray-500">NEWS</span></span>
+      <nav class="hidden md:flex space-x-8 text-sm font-semibold uppercase tracking-wider text-gray-500">
+        <a href="index.html" class="hover:text-slate-950 transition">Beranda</a>
+        <a href="artikel.html" class="hover:text-slate-950 transition">Artikel</a>
+        <a href="kategori.html" class="text-slate-900 border-b-2 border-slate-900 pb-1">Kategori</a>
+        <a href="tentang.html" class="hover:text-slate-950 transition">Tentang</a>
+        <a href="kontak.html" class="hover:text-slate-950 transition">Kontak</a>
       </nav>
     </div>
   </header>
 
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-grow">
-    <h1 id="catTitle" class="text-3xl font-extrabold mb-8 border-b-2 border-indigo-500 pb-2 text-gray-900">Telusuri Kategori</h1>
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 flex-grow">
+    <h1 id="catTitle" class="text-2xl font-black uppercase tracking-wider mb-8 border-b border-slate-900 pb-3 text-slate-900">Telusuri Kategori</h1>
     
-    <div id="filterSection" class="flex flex-wrap gap-2 mb-8">
+    <div id="filterSection" class="flex flex-wrap gap-2 mb-10">
       <!-- Diisi daftar semua kategori -->
     </div>
 
-    <div id="articlesGrid" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <p class="text-gray-500">Memilih kategori...</p>
+    <div id="articlesGrid" class="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <p class="text-gray-400 text-sm font-light">Memilih kategori...</p>
     </div>
   </main>
 
@@ -38,7 +52,57 @@
       const urlParams = new URLSearchParams(window.location.search);
       const catParam = urlParams.get('cat');
       loadCategories(catParam);
+      setupMobileMenu();
     });
+
+    function setupMobileMenu() {
+      const headerContainer = document.querySelector('header > div');
+      if (headerContainer) {
+        const mobileMenuBtn = document.createElement('button');
+        mobileMenuBtn.className = 'md:hidden text-slate-900 hover:text-black focus:outline-none p-2 ml-2 order-last';
+        mobileMenuBtn.innerHTML = '<i class="fa-solid fa-bars text-xl"></i>';
+        headerContainer.appendChild(mobileMenuBtn);
+
+        const offCanvas = document.createElement('div');
+        offCanvas.className = 'fixed inset-0 bg-black bg-opacity-40 z-50 transform translate-x-full transition-transform duration-300 ease-in-out md:hidden';
+        offCanvas.id = 'mobile-offcanvas';
+        offCanvas.innerHTML = `
+          <div class="bg-white w-64 h-full p-6 flex flex-col justify-between shadow-2xl ml-auto">
+            <div>
+              <div class="flex items-center justify-between pb-6 border-b border-gray-100">
+                <span class="text-lg font-black tracking-tight text-slate-900"><i class="fa-solid fa-feather-pointed"></i> Alvaro News</span>
+                <button id="close-offcanvas" class="text-gray-500 hover:text-black"><i class="fa-solid fa-xmark text-xl"></i></button>
+              </div>
+              <nav class="flex flex-col gap-4 mt-8 text-sm font-semibold uppercase tracking-wider text-gray-500">
+                <a href="index.html" class="hover:text-slate-950">Beranda</a>
+                <a href="artikel.html" class="hover:text-slate-950">Artikel</a>
+                <a href="kategori.html" class="text-slate-900">Kategori</a>
+                <a href="tentang.html" class="hover:text-slate-950">Tentang</a>
+                <a href="kontak.html" class="hover:text-slate-950">Kontak</a>
+              </nav>
+            </div>
+            <div class="text-[11px] text-gray-400 border-t border-gray-100 pt-4">
+              © 2026 Alvaro News.
+            </div>
+          </div>
+        `;
+        document.body.appendChild(offCanvas);
+
+        mobileMenuBtn.addEventListener('click', () => {
+          offCanvas.classList.remove('translate-x-full');
+        });
+
+        offCanvas.querySelector('#close-offcanvas').addEventListener('click', () => {
+          offCanvas.classList.add('translate-x-full');
+        });
+
+        offCanvas.addEventListener('click', (e) => {
+          if (e.target === offCanvas) {
+            offCanvas.classList.add('translate-x-full');
+          }
+        });
+      }
+    }
 
     async function loadCategories(activeCat) {
       const filterDiv = document.getElementById("filterSection");
@@ -53,17 +117,16 @@
         const dataCat = await resCat.json();
 
         if (dataArt.success && dataCat.success) {
-          // Render Filter Buttons
-          filterDiv.innerHTML = `<button onclick="renderCategoryFiltered('all')" class="px-4 py-2 text-sm font-medium rounded-full ${!activeCat ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Semua</button>` +
+          filterDiv.innerHTML = `<button onclick="renderCategoryFiltered('all')" class="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider rounded-full transition ${!activeCat ? 'bg-slate-900 text-white shadow-sm' : 'bg-white border border-gray-200 text-slate-800 hover:bg-gray-50'}">Semua</button>` +
             dataCat.data.map(cat => `
-              <button onclick="renderCategoryFiltered('${cat.Name}')" class="px-4 py-2 text-sm font-medium rounded-full ${activeCat === cat.Name ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">${cat.Name}</button>
+              <button onclick="renderCategoryFiltered('${cat.Name}')" class="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider rounded-full transition ${activeCat === cat.Name ? 'bg-slate-900 text-white shadow-sm' : 'bg-white border border-gray-200 text-slate-800 hover:bg-gray-50'}">${cat.Name}</button>
             `).join('');
 
           window.allArticles = dataArt.data;
           renderCategoryFiltered(activeCat || 'all');
         }
       } catch (err) {
-        grid.innerHTML = `<p class="text-red-500">Terjadi kesalahan pemuatan data.</p>`;
+        grid.innerHTML = `<p class="text-red-500 text-sm">Terjadi kesalahan pemuatan data.</p>`;
       }
     }
 
@@ -79,34 +142,35 @@
         catTitle.innerText = `Semua Kategori`;
       }
 
-      // Update active button classes
       const buttons = document.querySelectorAll("#filterSection button");
       buttons.forEach(btn => {
         if (btn.innerText === catName || (catName === 'all' && btn.innerText === 'Semua')) {
-          btn.className = "px-4 py-2 text-sm font-medium rounded-full bg-indigo-600 text-white";
+          btn.className = "px-5 py-2.5 text-xs font-semibold uppercase tracking-wider rounded-full bg-slate-900 text-white shadow-sm transition";
         } else {
-          btn.className = "px-4 py-2 text-sm font-medium rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200";
+          btn.className = "px-5 py-2.5 text-xs font-semibold uppercase tracking-wider rounded-full bg-white border border-gray-200 text-slate-800 hover:bg-gray-50 transition";
         }
       });
 
       if (filtered.length === 0) {
-        grid.innerHTML = `<p class="col-span-3 text-center text-gray-500 py-12">Belum ada artikel di kategori ini.</p>`;
+        grid.innerHTML = `<p class="col-span-3 text-center text-gray-400 font-light py-16">Belum ada artikel di kategori ini.</p>`;
         return;
       }
 
       grid.innerHTML = filtered.map(art => `
-        <article class="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden flex flex-col hover:shadow-md transition">
-          <img src="${art.Thumbnail}" class="h-44 w-full object-cover">
-          <div class="p-5 flex flex-col justify-between flex-grow">
+        <article class="bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col hover:shadow-md transition duration-300 group">
+          <div class="overflow-hidden">
+            <img src="${art.Thumbnail}" class="h-48 w-full object-cover group-hover:scale-105 transition duration-500">
+          </div>
+          <div class="p-6 flex flex-col justify-between flex-grow">
             <div>
-              <span class="text-xs font-semibold text-indigo-600 uppercase">${art.Category}</span>
-              <h3 class="text-lg font-bold text-gray-900 mt-1 mb-2 line-clamp-2">
-                <a href="artikel.html?id=${art.ID}" class="hover:text-indigo-600">${art.Title}</a>
+              <span class="text-[10px] font-extrabold text-slate-500 tracking-wider uppercase">${art.Category}</span>
+              <h3 class="text-base font-bold text-slate-900 mt-2 mb-2 line-clamp-2 hover:text-slate-700 transition">
+                <a href="artikel.html?slug=${art.Slug}">${art.Title}</a>
               </h3>
-              <p class="text-sm text-gray-600 line-clamp-2 mb-4">${art.Summary}</p>
+              <p class="text-xs text-gray-400 line-clamp-2 mb-4 font-light">${art.Summary}</p>
             </div>
-            <div class="text-xs text-gray-500 border-t pt-3 flex justify-between">
-              <span>${art.Author}</span>
+            <div class="text-[11px] text-gray-400 border-t border-gray-50 pt-4 flex justify-between mt-2">
+              <span class="font-medium text-slate-700">${art.Author}</span>
               <span>${art.Date}</span>
             </div>
           </div>
