@@ -179,6 +179,63 @@
   <script>
     document.addEventListener("DOMContentLoaded", function() {
       fetchData();
+          // Panggil fungsi ini di dalam event listener DOMContentLoaded Anda
+    setupNewsletter();
+
+    function setupNewsletter() {
+      // Mencari form di dalam section newsletter
+      const form = document.querySelector('section form');
+      if (form) {
+        // Menghapus onsubmit default inline jika ada
+        form.removeAttribute('onsubmit');
+        
+        form.addEventListener('submit', async function(e) {
+          e.preventDefault();
+          
+          const emailInput = form.querySelector('input[type="email"]');
+          const submitBtn = form.querySelector('button[type="submit"]');
+          if (!emailInput || !submitBtn) return;
+
+          const email = emailInput.value.trim();
+          
+          // Validasi format email standard RFC 5322
+          const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+          if (!emailRegex.test(email)) {
+            alert("Silakan masukkan format email yang valid.");
+            return;
+          }
+
+          // Tampilan memuat (loading state)
+          const originalText = submitBtn.innerText;
+          submitBtn.disabled = true;
+          submitBtn.innerText = "GABUNG...";
+
+          try {
+            const res = await fetch(API_URL, {
+              method: 'POST',
+              body: JSON.stringify({
+                action: 'addNewsletter',
+                email: email
+              })
+            });
+            
+            const data = await res.json();
+            if (data.success) {
+              alert("Terima kasih! Anda telah berhasil berlangganan newsletter kami.");
+              emailInput.value = '';
+            } else {
+              alert(data.message || "Gagal berlangganan. Silakan coba kembali nanti.");
+            }
+          } catch (err) {
+            console.error("Newsletter error: ", err);
+            alert("Terjadi gangguan koneksi ke server.");
+          } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerText = originalText;
+          }
+        });
+      }
+    }
       setupMobileMenu();
     });
 
