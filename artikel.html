@@ -4,6 +4,26 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Artikel - Portal Kreatif</title>
+
+  <!-- SEO & Social Media Preview Metadata (Open Graph & Twitter) -->
+  <meta name="description" content="Baca berita dan artikel terkini seputar Alvaro dan Vr Lovers.">
+  <meta name="keywords" content="alvaro, berita alvaro, vr lovers, artikel">
+  <link rel="canonical" href="" id="canonicalLink">
+
+  <!-- Open Graph / Facebook / WhatsApp / Telegram -->
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="Artikel - Alvaro News" id="ogTitle">
+  <meta property="og:description" content="Baca berita dan artikel terkini seputar Alvaro dan Vr Lovers." id="ogDesc">
+  <meta property="og:image" content="https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=500" id="ogImage">
+  <meta property="og:url" content="" id="ogUrl">
+  <meta property="og:site_name" content="Alvaro News">
+
+  <!-- Twitter / X Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Artikel - Alvaro News" id="twTitle">
+  <meta name="twitter:description" content="Baca berita dan artikel terkini seputar Alvaro dan Vr Lovers." id="twDesc">
+  <meta name="twitter:image" content="https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=500" id="twImage">
+
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
@@ -19,6 +39,21 @@
       -webkit-box-orient: vertical;  
       overflow: hidden;
     }
+    /* Dynamic Article Prose & Table Styling */
+    .article-rendered-body h2 { font-size: 1.6rem; font-weight: 800; color: #0f172a; margin: 1.5rem 0 0.75rem; }
+    .article-rendered-body h3 { font-size: 1.3rem; font-weight: 700; color: #0f172a; margin: 1.25rem 0 0.5rem; }
+    .article-rendered-body h4 { font-size: 1.15rem; font-weight: 700; color: #0f172a; margin: 1rem 0 0.5rem; }
+    .article-rendered-body p { margin-bottom: 1.25rem; line-height: 1.8; }
+    .article-rendered-body ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 1.25rem; }
+    .article-rendered-body ol { list-style-type: decimal; margin-left: 1.5rem; margin-bottom: 1.25rem; }
+    .article-rendered-body li { margin-bottom: 0.35rem; }
+    .article-rendered-body blockquote { border-left: 4px solid #0f172a; padding-left: 1.25rem; font-style: italic; color: #475569; margin: 1.5rem 0; background: #f8fafc; padding-top: 0.5rem; padding-bottom: 0.5rem; border-radius: 0 0.75rem 0.75rem 0; }
+    .article-rendered-body a { color: #0284c7; text-decoration: underline; font-weight: 500; }
+    .article-rendered-body a:hover { color: #0369a1; }
+    .article-rendered-body table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; font-size: 0.9rem; }
+    .article-rendered-body th, .article-rendered-body td { border: 1px solid #e2e8f0; padding: 10px 14px; text-align: left; }
+    .article-rendered-body th { background-color: #f8fafc; font-weight: 700; color: #0f172a; }
+    .article-rendered-body hr { border: 0; border-top: 1px solid #e2e8f0; margin: 2rem 0; }
   </style>
 </head>
 <body class="bg-[#fafafa] text-slate-900 flex flex-col min-h-screen antialiased">
@@ -118,9 +153,93 @@
       }
     }
 
+    // Pembersih dan Pemformat Konten HTML Aman
+    function sanitizeAndFormatContent(rawContent) {
+      if (!rawContent) return "";
+      
+      // Jika teks artikel lama berbentuk plain text (tidak mengandung tag HTML), konversi baris baru menjadi paragraf
+      if (!/<\/?[a-z][\s\S]*>/i.test(rawContent)) {
+        return rawContent.split('\n\n').map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+      }
+
+      // Parser DOM untuk memastikan tabel responsif dan hyperlink aman
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = rawContent;
+
+      // Sanitasi tag terlarang
+      const scripts = tempDiv.querySelectorAll('script, iframe, object, embed');
+      scripts.forEach(s => s.remove());
+
+      // Sanitasi tautan hyperlink (mencegah javascript: dan menambahkan rel safe)
+      const links = tempDiv.querySelectorAll('a');
+      links.forEach(a => {
+        const href = a.getAttribute('href') || '';
+        if (href.trim().toLowerCase().startsWith('javascript:')) {
+          a.removeAttribute('href');
+        } else {
+          a.setAttribute('target', '_blank');
+          a.setAttribute('rel', 'noopener noreferrer');
+        }
+      });
+
+      // Pastikan semua tabel terbungkus pembungkus responsif
+      const tables = tempDiv.querySelectorAll('table');
+      tables.forEach(table => {
+        if (!table.parentElement.classList.contains('overflow-x-auto')) {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'overflow-x-auto my-4';
+          table.parentNode.insertBefore(wrapper, table);
+          wrapper.appendChild(table);
+        }
+      });
+
+      return tempDiv.innerHTML;
+    }
+
+    // Pembaruan SEO Metadata & Social Media Preview (OG & Twitter)
+    function updateSEOMetadata(art) {
+      const pageTitle = `${art.Title} - Alvaro News`;
+      document.title = pageTitle;
+
+      const desc = art.Summary || art.Title;
+      const currentUrl = window.location.href;
+      const thumb = art.Thumbnail || 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=500';
+
+      // Meta Description & Canonical
+      const metaDesc = document.querySelector('meta[name="description"]');
+      if (metaDesc) metaDesc.setAttribute("content", desc);
+
+      const canonical = document.getElementById("canonicalLink");
+      if (canonical) canonical.setAttribute("href", currentUrl);
+
+      // Open Graph Tags
+      const ogTitle = document.getElementById("ogTitle");
+      if (ogTitle) ogTitle.setAttribute("content", pageTitle);
+
+      const ogDesc = document.getElementById("ogDesc");
+      if (ogDesc) ogDesc.setAttribute("content", desc);
+
+      const ogImage = document.getElementById("ogImage");
+      if (ogImage) ogImage.setAttribute("content", thumb);
+
+      const ogUrl = document.getElementById("ogUrl");
+      if (ogUrl) ogUrl.setAttribute("content", currentUrl);
+
+      // Twitter Tags
+      const twTitle = document.getElementById("twTitle");
+      if (twTitle) twTitle.setAttribute("content", pageTitle);
+
+      const twDesc = document.getElementById("twDesc");
+      if (twDesc) twDesc.setAttribute("content", desc);
+
+      const twImage = document.getElementById("twImage");
+      if (twImage) twImage.setAttribute("content", thumb);
+    }
+
     async function loadDetail(id) {
       const main = document.getElementById("mainContainer");
       try {
+        // Tetap mencatat views di server tanpa menampilkannya pada UI
         fetch(API_URL, {
           method: 'POST',
           body: JSON.stringify({ action: 'incrementView', id: id })
@@ -132,7 +251,47 @@
         if (result.success) {
           const art = result.data.find(item => item.Slug === id || item.ID === id);
           if (art) {
-            document.title = `${art.Title} - Alvaro News`;
+            updateSEOMetadata(art);
+
+            const safeHtml = sanitizeAndFormatContent(art.Content);
+
+            // Filter artikel lainnya untuk rekomendasi (mengecualikan artikel aktif saat ini)
+            const otherArticles = result.data
+              .filter(item => item.ID !== art.ID && item.Slug !== art.Slug)
+              .slice(0, 3);
+
+            let otherArticlesHtml = '';
+            if (otherArticles.length > 0) {
+              otherArticlesHtml = `
+                <section class="mt-16 pt-12 border-t border-gray-100">
+                  <h2 class="text-xl font-black uppercase tracking-wider text-slate-900 mb-8 pb-3 border-b border-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-newspaper text-slate-800"></i> Baca Berita Lainnya
+                  </h2>
+                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                    ${otherArticles.map(item => `
+                      <article class="bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col hover:shadow-md transition duration-300 group">
+                        <div class="overflow-hidden">
+                          <img src="${item.Thumbnail || 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=500'}" alt="${item.Title}" class="h-36 w-full object-cover group-hover:scale-105 transition duration-500">
+                        </div>
+                        <div class="p-5 flex flex-col justify-between flex-grow">
+                          <div>
+                            <span class="text-[10px] font-extrabold text-slate-500 tracking-wider uppercase">${item.Category}</span>
+                            <h3 class="text-sm font-bold text-slate-900 mt-1 mb-2 line-clamp-2 hover:text-slate-700 transition">
+                              <a href="artikel.html?slug=${item.Slug}">${item.Title}</a>
+                            </h3>
+                          </div>
+                          <div class="text-[10px] text-gray-400 border-t border-gray-50 pt-3 mt-2 flex justify-between">
+                            <span>${item.Author}</span>
+                            <span>${item.Date}</span>
+                          </div>
+                        </div>
+                      </article>
+                    `).join('')}
+                  </div>
+                </section>
+              `;
+            }
+
             main.innerHTML = `
               <article class="bg-white rounded-3xl border border-gray-100 p-8 sm:p-12">
                 <nav class="text-xs uppercase tracking-wider text-gray-400 mb-6 flex gap-2">
@@ -145,14 +304,13 @@
                   <span>Oleh: <strong class="text-slate-900">${art.Author}</strong></span>
                   <span>•</span>
                   <span>${art.Date}</span>
-                  <span>•</span>
-                  <span><i class="fa-regular fa-eye"></i> ${Number(art.Views) + 1} Pembaca</span>
                 </div>
                 <img src="${art.Thumbnail}" alt="${art.Title}" class="w-full h-auto rounded-2xl mb-10 object-cover max-h-[500px]">
-                <div class="prose max-w-none text-slate-700 leading-relaxed text-[15px] sm:text-[17px] whitespace-pre-line font-light">
-                  ${art.Content}
+                <div class="article-rendered-body prose max-w-none text-slate-700 text-[15px] sm:text-[17px] font-light">
+                  ${safeHtml}
                 </div>
               </article>
+              ${otherArticlesHtml}
             `;
           } else {
             main.innerHTML = `<div class="text-center py-20"><h2 class="text-xl font-bold text-slate-900">Artikel tidak ditemukan atau di-draft.</h2><a href="index.html" class="text-xs font-semibold uppercase tracking-wider text-slate-800 border-b border-slate-800 mt-6 inline-block">Kembali ke Beranda</a></div>`;
