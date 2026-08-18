@@ -157,20 +157,16 @@
     function sanitizeAndFormatContent(rawContent) {
       if (!rawContent) return "";
       
-      // Jika teks artikel lama berbentuk plain text (tidak mengandung tag HTML), konversi baris baru menjadi paragraf
       if (!/<\/?[a-z][\s\S]*>/i.test(rawContent)) {
         return rawContent.split('\n\n').map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
       }
 
-      // Parser DOM untuk memastikan tabel responsif dan hyperlink aman
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = rawContent;
 
-      // Sanitasi tag terlarang
       const scripts = tempDiv.querySelectorAll('script, iframe, object, embed');
       scripts.forEach(s => s.remove());
 
-      // Sanitasi tautan hyperlink (mencegah javascript: dan menambahkan rel safe)
       const links = tempDiv.querySelectorAll('a');
       links.forEach(a => {
         const href = a.getAttribute('href') || '';
@@ -182,7 +178,6 @@
         }
       });
 
-      // Pastikan semua tabel terbungkus pembungkus responsif
       const tables = tempDiv.querySelectorAll('table');
       tables.forEach(table => {
         if (!table.parentElement.classList.contains('overflow-x-auto')) {
@@ -205,14 +200,12 @@
       const currentUrl = window.location.href;
       const thumb = art.Thumbnail || 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=500';
 
-      // Meta Description & Canonical
       const metaDesc = document.querySelector('meta[name="description"]');
       if (metaDesc) metaDesc.setAttribute("content", desc);
 
       const canonical = document.getElementById("canonicalLink");
       if (canonical) canonical.setAttribute("href", currentUrl);
 
-      // Open Graph Tags
       const ogTitle = document.getElementById("ogTitle");
       if (ogTitle) ogTitle.setAttribute("content", pageTitle);
 
@@ -225,7 +218,6 @@
       const ogUrl = document.getElementById("ogUrl");
       if (ogUrl) ogUrl.setAttribute("content", currentUrl);
 
-      // Twitter Tags
       const twTitle = document.getElementById("twTitle");
       if (twTitle) twTitle.setAttribute("content", pageTitle);
 
@@ -239,7 +231,6 @@
     async function loadDetail(id) {
       const main = document.getElementById("mainContainer");
       try {
-        // Tetap mencatat views di server tanpa menampilkannya pada UI
         fetch(API_URL, {
           method: 'POST',
           body: JSON.stringify({ action: 'incrementView', id: id })
@@ -255,7 +246,6 @@
 
             const safeHtml = sanitizeAndFormatContent(art.Content);
 
-            // Filter artikel lainnya untuk rekomendasi (mengecualikan artikel aktif saat ini)
             const otherArticles = result.data
               .filter(item => item.ID !== art.ID && item.Slug !== art.Slug)
               .slice(0, 3);
@@ -300,10 +290,16 @@
                   <span class="text-slate-800 font-bold">${art.Category}</span>
                 </nav>
                 <h1 class="text-3xl sm:text-5xl font-black text-slate-900 mb-6 leading-tight tracking-tight">${art.Title}</h1>
-                <div class="flex flex-wrap items-center gap-4 text-xs text-gray-400 mb-8 pb-6 border-b border-gray-100">
+                <div class="flex flex-wrap items-center gap-4 text-xs text-gray-400 mb-4 pb-4 border-b border-gray-100">
                   <span>Oleh: <strong class="text-slate-900">${art.Author}</strong></span>
                   <span>•</span>
                   <span>${art.Date}</span>
+                </div>
+                <!-- Tombol Salin Tautan Tepat di Bawah Bagian Tanggal -->
+                <div class="mb-8">
+                  <button type="button" onclick="salinTautanShare('${art.Slug || id}')" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 hover:text-slate-950 text-xs font-semibold uppercase tracking-wider rounded-full transition shadow-sm border border-slate-200/60">
+                    <i class="fa-solid fa-link text-xs"></i> Salin Tautan
+                  </button>
                 </div>
                 <img src="${art.Thumbnail}" alt="${art.Title}" class="w-full h-auto rounded-2xl mb-10 object-cover max-h-[500px]">
                 <div class="article-rendered-body prose max-w-none text-slate-700 text-[15px] sm:text-[17px] font-light">
@@ -377,6 +373,45 @@
       } catch (err) {
         main.innerHTML = `<p class="text-red-500 text-center text-sm">Gagal memuat daftar artikel: ${err.message}</p>`;
       }
+    }
+
+    // Fungsi untuk membuat format URL share.php, menyalin ke clipboard, dan menampilkan alert
+    function salinTautanShare(customSlug) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const slug = customSlug || urlParams.get('slug') || urlParams.get('id') || '';
+      
+      const currentOrigin = window.location.origin;
+      const currentPath = window.location.pathname;
+      const basePath = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
+      const shareUrl = `${currentOrigin}${basePath}share.php?slug=${encodeURIComponent(slug)}`;
+
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(shareUrl).then(() => {
+          alert("Tautan berhasil disalin:\n" + shareUrl);
+        }).catch(() => {
+          fallbackSalinTeks(shareUrl);
+        });
+      } else {
+        fallbackSalinTeks(shareUrl);
+      }
+    }
+
+    function fallbackSalinTeks(text) {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      textArea.style.top = "-999999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        alert("Tautan berhasil disalin:\n" + text);
+      } catch (err) {
+        alert("Gagal menyalin tautan: " + err);
+      }
+      textArea.remove();
     }
   </script>
 </body>
