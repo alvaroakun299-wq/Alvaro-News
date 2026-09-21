@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login Admin - Portal Artikel</title>
+  <link rel="icon" type="image/x-icon" id="dynamicFavicon" href="https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=64">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
@@ -18,7 +19,10 @@
 
   <div class="bg-white p-10 rounded-3xl border border-gray-100 w-full max-w-md shadow-sm">
     <div class="text-center mb-8">
-      <h2 class="text-2xl font-black text-slate-900 tracking-tight">Admin Login</h2>
+      <div id="loginLogoContainer" class="mb-4 hidden flex justify-center">
+        <img id="loginLogo" src="" alt="Logo" class="h-12 w-auto object-contain">
+      </div>
+      <h2 class="text-2xl font-black text-slate-900 tracking-tight" id="loginHeaderTitle">Admin Login</h2>
       <p class="text-gray-400 text-xs mt-2 font-light">Masukkan kata sandi untuk masuk ke CMS</p>
     </div>
 
@@ -51,6 +55,26 @@
       window.location.href = "admin.html";
     }
 
+    document.addEventListener("DOMContentLoaded", function() {
+      loadSiteSettings();
+    });
+
+    async function loadSiteSettings() {
+      try {
+        const res = await fetch(`${API_URL}?action=getSettings`);
+        const json = await res.json();
+        if (json.success && json.data) {
+          const s = json.data;
+          if (s.site_logo) {
+            const logo = document.getElementById("loginLogo");
+            logo.src = s.site_logo;
+            document.getElementById("loginLogoContainer").classList.remove("hidden");
+          }
+          if (s.site_favicon) document.getElementById("dynamicFavicon").href = s.site_favicon;
+        }
+      } catch (e) { console.error(e); }
+    }
+
     function togglePasswordVisibility() {
       const passInput = document.getElementById("password");
       const icon = document.getElementById("togglePasswordIcon");
@@ -78,10 +102,7 @@
       try {
         const res = await fetch(API_URL, {
           method: 'POST',
-          body: JSON.stringify({
-            action: 'login',
-            password: password
-          })
+          body: JSON.stringify({ action: 'login', password: password })
         });
         const result = await res.json();
 

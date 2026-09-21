@@ -3,14 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Artikel - Portal Kreatif</title>
+  <title>Artikel - Alvaro News</title>
+  <link rel="icon" type="image/x-icon" id="dynamicFavicon" href="https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=64">
 
-  <!-- SEO & Social Media Preview Metadata (Open Graph & Twitter) -->
+  <!-- SEO & Social Media Preview Metadata -->
   <meta name="description" content="Baca berita dan artikel terkini seputar Alvaro dan Vr Lovers.">
   <meta name="keywords" content="alvaro, berita alvaro, vr lovers, artikel">
   <link rel="canonical" href="" id="canonicalLink">
 
-  <!-- Open Graph / Facebook / WhatsApp / Telegram -->
+  <!-- Open Graph / WhatsApp / Facebook -->
   <meta property="og:type" content="article">
   <meta property="og:title" content="Artikel - Alvaro News" id="ogTitle">
   <meta property="og:description" content="Baca berita dan artikel terkini seputar Alvaro dan Vr Lovers." id="ogDesc">
@@ -39,7 +40,6 @@
       -webkit-box-orient: vertical;  
       overflow: hidden;
     }
-    /* Dynamic Article Prose & Table Styling */
     .article-rendered-body h2 { font-size: 1.6rem; font-weight: 800; color: #0f172a; margin: 1.5rem 0 0.75rem; }
     .article-rendered-body h3 { font-size: 1.3rem; font-weight: 700; color: #0f172a; margin: 1.25rem 0 0.5rem; }
     .article-rendered-body h4 { font-size: 1.15rem; font-weight: 700; color: #0f172a; margin: 1rem 0 0.5rem; }
@@ -58,12 +58,19 @@
 </head>
 <body class="bg-[#fafafa] text-slate-900 flex flex-col min-h-screen antialiased">
 
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed top-6 right-6 z-50 flex flex-col gap-3 pointer-events-none"></div>
+
+  <!-- Header -->
   <header class="bg-white border-b border-gray-100 sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
       <div class="flex items-center gap-2">
-        <span class="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
-          <i class="fa-solid fa-feather-pointed text-slate-800"></i> ALVARO <span class="font-light text-gray-500">NEWS</span>
-        </span>
+        <a href="index.html" class="flex items-center gap-3" id="siteHeaderBrand">
+          <span class="site-header-logo-container hidden"><img id="siteHeaderLogo" src="" alt="Logo" class="h-9 w-auto object-contain"></span>
+          <span id="siteHeaderTitle" class="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
+            <i class="fa-solid fa-feather-pointed text-slate-800" id="siteDefaultIcon"></i> ALVARO <span class="font-light text-gray-500">NEWS</span>
+          </span>
+        </a>
       </div>
       <nav class="hidden md:flex space-x-8 text-sm font-semibold uppercase tracking-wider text-gray-500">
         <a href="index.html" class="hover:text-slate-950 transition">Beranda</a>
@@ -76,7 +83,6 @@
   </header>
 
   <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 flex-grow" id="mainContainer">
-    <!-- Loading Container -->
     <div class="text-center py-20" id="loader">
       <i class="fa-solid fa-spinner fa-spin text-4xl text-slate-900"></i>
       <p class="text-gray-400 mt-3 text-sm font-light">Memuat halaman...</p>
@@ -84,7 +90,7 @@
   </main>
 
   <footer class="bg-slate-950 text-gray-400 py-12 border-t border-gray-900 mt-auto">
-    <div class="max-w-7xl mx-auto px-4 text-center text-sm font-light">
+    <div class="max-w-7xl mx-auto px-4 text-center text-sm font-light" id="footerBrand">
       © 2026 Alvaro News. Hak Cipta Dilindungi.
     </div>
   </footer>
@@ -96,6 +102,7 @@
       const articleId = urlParams.get('slug') || urlParams.get('id');
       const searchQuery = urlParams.get('search');
 
+      loadSiteSettings();
       if (articleId) {
         loadDetail(articleId);
       } else {
@@ -103,6 +110,74 @@
       }
       setupMobileMenu();
     });
+
+    // Parsing dan Formatting Waktu WIB
+    function formatHumanWibDate(dateStr) {
+      if (!dateStr) return "-";
+      const str = String(dateStr).trim();
+      const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+      
+      const customMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+      if (customMatch) {
+        const year = customMatch[1];
+        const month = months[parseInt(customMatch[2], 10) - 1];
+        const day = parseInt(customMatch[3], 10);
+        const hour = customMatch[4] || "00";
+        const min = customMatch[5] || "00";
+        return `${day} ${month} ${year} • ${hour}:${min} WIB`;
+      }
+      
+      const d = new Date(dateStr);
+      if (!isNaN(d.getTime())) {
+        const day = d.getDate();
+        const month = months[d.getMonth()];
+        const year = d.getFullYear();
+        const hour = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        return `${day} ${month} ${year} • ${hour}:${min} WIB`;
+      }
+      return str;
+    }
+
+    function showToast(message, isSuccess = true) {
+      const container = document.getElementById("toastContainer");
+      const toast = document.createElement("div");
+      toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl border text-xs font-semibold max-w-sm transition-all duration-300 transform translate-y-2 opacity-0 bg-white ${
+        isSuccess ? 'border-emerald-100 text-emerald-800' : 'border-rose-100 text-rose-800'
+      }`;
+      toast.innerHTML = `<i class="fa-solid ${isSuccess ? 'fa-circle-check text-emerald-500' : 'fa-circle-exclamation text-rose-500'}"></i> <span>${message}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => { toast.classList.remove('translate-y-2', 'opacity-0'); }, 10);
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    async function loadSiteSettings() {
+      try {
+        const res = await fetch(`${API_URL}?action=getSettings`);
+        const json = await res.json();
+        if (json.success && json.data) {
+          const s = json.data;
+          if (s.site_name) {
+            document.getElementById("siteHeaderTitle").innerText = s.site_name;
+            const footer = document.getElementById("footerBrand");
+            if (footer) footer.innerText = `© 2026 ${s.site_name}. Hak Cipta Dilindungi.`;
+          }
+          if (s.site_logo) {
+            const logoImg = document.getElementById("siteHeaderLogo");
+            logoImg.src = s.site_logo;
+            logoImg.parentElement.classList.remove("hidden");
+            const defIcon = document.getElementById("siteDefaultIcon");
+            if (defIcon) defIcon.classList.add("hidden");
+          }
+          if (s.site_favicon) {
+            document.getElementById("dynamicFavicon").href = s.site_favicon;
+          }
+        }
+      } catch (e) { console.error("Error loading header settings:", e); }
+    }
 
     function setupMobileMenu() {
       const headerContainer = document.querySelector('header > div');
@@ -137,38 +212,23 @@
         `;
         document.body.appendChild(offCanvas);
 
-        mobileMenuBtn.addEventListener('click', () => {
-          offCanvas.classList.remove('translate-x-full');
-        });
-
-        offCanvas.querySelector('#close-offcanvas').addEventListener('click', () => {
-          offCanvas.classList.add('translate-x-full');
-        });
-
-        offCanvas.addEventListener('click', (e) => {
-          if (e.target === offCanvas) {
-            offCanvas.classList.add('translate-x-full');
-          }
-        });
+        mobileMenuBtn.addEventListener('click', () => { offCanvas.classList.remove('translate-x-full'); });
+        offCanvas.querySelector('#close-offcanvas').addEventListener('click', () => { offCanvas.classList.add('translate-x-full'); });
+        offCanvas.addEventListener('click', (e) => { if (e.target === offCanvas) offCanvas.classList.add('translate-x-full'); });
       }
     }
 
-    // Pembersih dan Pemformat Konten HTML Aman
     function sanitizeAndFormatContent(rawContent) {
       if (!rawContent) return "";
-      
       if (!/<\/?[a-z][\s\S]*>/i.test(rawContent)) {
         return rawContent.split('\n\n').map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
       }
 
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = rawContent;
+      tempDiv.querySelectorAll('script, iframe, object, embed').forEach(s => s.remove());
 
-      const scripts = tempDiv.querySelectorAll('script, iframe, object, embed');
-      scripts.forEach(s => s.remove());
-
-      const links = tempDiv.querySelectorAll('a');
-      links.forEach(a => {
+      tempDiv.querySelectorAll('a').forEach(a => {
         const href = a.getAttribute('href') || '';
         if (href.trim().toLowerCase().startsWith('javascript:')) {
           a.removeAttribute('href');
@@ -178,8 +238,7 @@
         }
       });
 
-      const tables = tempDiv.querySelectorAll('table');
-      tables.forEach(table => {
+      tempDiv.querySelectorAll('table').forEach(table => {
         if (!table.parentElement.classList.contains('overflow-x-auto')) {
           const wrapper = document.createElement('div');
           wrapper.className = 'overflow-x-auto my-4';
@@ -187,63 +246,48 @@
           wrapper.appendChild(table);
         }
       });
-
       return tempDiv.innerHTML;
     }
 
-    // Pembaruan SEO Metadata & Social Media Preview (OG & Twitter)
     function updateSEOMetadata(art) {
       const pageTitle = `${art.Title} - Alvaro News`;
       document.title = pageTitle;
-
       const desc = art.Summary || art.Title;
       const currentUrl = window.location.href;
       const thumb = art.Thumbnail || 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=500';
 
-      const metaDesc = document.querySelector('meta[name="description"]');
-      if (metaDesc) metaDesc.setAttribute("content", desc);
+      const setMeta = (sel, attr, val) => {
+        const el = document.querySelector(sel);
+        if (el) el.setAttribute(attr, val);
+      };
 
-      const canonical = document.getElementById("canonicalLink");
-      if (canonical) canonical.setAttribute("href", currentUrl);
-
-      const ogTitle = document.getElementById("ogTitle");
-      if (ogTitle) ogTitle.setAttribute("content", pageTitle);
-
-      const ogDesc = document.getElementById("ogDesc");
-      if (ogDesc) ogDesc.setAttribute("content", desc);
-
-      const ogImage = document.getElementById("ogImage");
-      if (ogImage) ogImage.setAttribute("content", thumb);
-
-      const ogUrl = document.getElementById("ogUrl");
-      if (ogUrl) ogUrl.setAttribute("content", currentUrl);
-
-      const twTitle = document.getElementById("twTitle");
-      if (twTitle) twTitle.setAttribute("content", pageTitle);
-
-      const twDesc = document.getElementById("twDesc");
-      if (twDesc) twDesc.setAttribute("content", desc);
-
-      const twImage = document.getElementById("twImage");
-      if (twImage) twImage.setAttribute("content", thumb);
+      setMeta('meta[name="description"]', 'content', desc);
+      setMeta('#canonicalLink', 'href', currentUrl);
+      setMeta('#ogTitle', 'content', pageTitle);
+      setMeta('#ogDesc', 'content', desc);
+      setMeta('#ogImage', 'content', thumb);
+      setMeta('#ogUrl', 'content', currentUrl);
+      setMeta('#twTitle', 'content', pageTitle);
+      setMeta('#twDesc', 'content', desc);
+      setMeta('#twImage', 'content', thumb);
     }
 
-    async function loadDetail(id) {
+    // Detail Artikel
+    async function loadDetail(idOrSlug) {
       const main = document.getElementById("mainContainer");
       try {
         fetch(API_URL, {
           method: 'POST',
-          body: JSON.stringify({ action: 'incrementView', id: id })
+          body: JSON.stringify({ action: 'incrementView', id: idOrSlug })
         });
 
         const res = await fetch(`${API_URL}?action=getArticles`);
         const result = await res.json();
         
         if (result.success) {
-          const art = result.data.find(item => item.Slug === id || item.ID === id);
+          const art = result.data.find(item => item.Slug === idOrSlug || item.ID === idOrSlug);
           if (art) {
             updateSEOMetadata(art);
-
             const safeHtml = sanitizeAndFormatContent(art.Content);
 
             const otherArticles = result.data
@@ -272,7 +316,7 @@
                           </div>
                           <div class="text-[10px] text-gray-400 border-t border-gray-50 pt-3 mt-2 flex justify-between">
                             <span>${item.Author}</span>
-                            <span>${item.Date}</span>
+                            <span>${formatHumanWibDate(item.Date)}</span>
                           </div>
                         </div>
                       </article>
@@ -290,26 +334,73 @@
                   <span class="text-slate-800 font-bold">${art.Category}</span>
                 </nav>
                 <h1 class="text-3xl sm:text-5xl font-black text-slate-900 mb-6 leading-tight tracking-tight">${art.Title}</h1>
-                <div class="flex flex-wrap items-center gap-4 text-xs text-gray-400 mb-4 pb-4 border-b border-gray-100">
+                <div class="flex flex-wrap items-center gap-4 text-xs text-gray-400 mb-6 pb-4 border-b border-gray-100">
                   <span>Oleh: <strong class="text-slate-900">${art.Author}</strong></span>
                   <span>•</span>
-                  <span>${art.Date}</span>
+                  <span>${formatHumanWibDate(art.Date)}</span>
                 </div>
-                <!-- Tombol Salin Tautan Tepat di Bawah Bagian Tanggal -->
-                <div class="mb-8">
-                  <button type="button" onclick="salinTautanShare('${art.Slug || id}')" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 hover:text-slate-950 text-xs font-semibold uppercase tracking-wider rounded-full transition shadow-sm border border-slate-200/60">
-                    <i class="fa-solid fa-link text-xs"></i> Salin Tautan
-                  </button>
+                
+                <!-- Menu Bagikan (P3) -->
+                <div class="mb-8 p-4 bg-gray-50 rounded-2xl border border-gray-100 flex flex-wrap items-center justify-between gap-4">
+                  <span class="text-xs uppercase tracking-wider font-extrabold text-slate-700 flex items-center gap-2">
+                    <i class="fa-solid fa-share-nodes text-slate-900"></i> Bagikan Artikel Ini
+                  </span>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button type="button" onclick="shareToPlatform('wa', '${art.Slug}')" class="px-3.5 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold flex items-center gap-1.5 transition">
+                      <i class="fa-brands fa-whatsapp text-sm"></i> WhatsApp
+                    </button>
+                    <button type="button" onclick="shareToPlatform('fb', '${art.Slug}')" class="px-3.5 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1.5 transition">
+                      <i class="fa-brands fa-facebook-f text-xs"></i> Facebook
+                    </button>
+                    <button type="button" onclick="shareToPlatform('tw', '${art.Slug}')" class="px-3.5 py-1.5 rounded-full bg-slate-900 hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition">
+                      <i class="fa-brands fa-x-twitter text-xs"></i> X / Twitter
+                    </button>
+                    <button type="button" onclick="salinTautanDirect('${art.Slug}')" class="px-3.5 py-1.5 rounded-full bg-white border border-gray-200 hover:bg-gray-100 text-slate-800 text-xs font-semibold flex items-center gap-1.5 transition shadow-sm">
+                      <i class="fa-solid fa-link text-xs"></i> Salin Tautan
+                    </button>
+                  </div>
                 </div>
+
                 <img src="${art.Thumbnail}" alt="${art.Title}" class="w-full h-auto rounded-2xl mb-10 object-cover max-h-[500px]">
                 <div class="article-rendered-body prose max-w-none text-slate-700 text-[15px] sm:text-[17px] font-light">
                   ${safeHtml}
                 </div>
               </article>
+
+              <!-- Kolom Komentar (P4, P5, P6) -->
+              <section class="bg-white rounded-3xl border border-gray-100 p-8 sm:p-12 mt-12">
+                <h2 class="text-xl font-black uppercase tracking-wider text-slate-900 mb-6 pb-2 border-b border-gray-100 flex items-center gap-2">
+                  <i class="fa-regular fa-comments text-slate-900"></i> Komentar
+                </h2>
+                
+                <form id="commentForm" onsubmit="submitComment(event, '${art.ID}')" class="space-y-4 mb-10">
+                  <div>
+                    <label class="block text-xs uppercase tracking-wider font-bold text-slate-700 mb-2">Nama Anda</label>
+                    <input type="text" id="commentName" required maxlength="50" placeholder="Tuliskan nama lengkap atau panggilan..." class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-slate-950">
+                  </div>
+                  <div>
+                    <label class="block text-xs uppercase tracking-wider font-bold text-slate-700 mb-2">Isi Komentar</label>
+                    <textarea id="commentBody" rows="4" required maxlength="1000" placeholder="Tulis komentar konstruktif Anda di sini..." class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-slate-950"></textarea>
+                  </div>
+                  <button type="submit" id="commentBtn" class="bg-slate-900 hover:bg-slate-800 text-white text-xs uppercase tracking-wider font-semibold px-6 py-3 rounded-full transition">
+                    Kirim Komentar
+                  </button>
+                </form>
+
+                <div class="space-y-4">
+                  <h3 class="text-xs uppercase tracking-wider font-extrabold text-slate-400">Daftar Komentar</h3>
+                  <div id="commentsContainer" class="space-y-4 divide-y divide-gray-50">
+                    <p class="text-xs text-gray-400 font-light pt-2">Memuat komentar...</p>
+                  </div>
+                </div>
+              </section>
+
               ${otherArticlesHtml}
             `;
+
+            loadComments(art.ID);
           } else {
-            main.innerHTML = `<div class="text-center py-20"><h2 class="text-xl font-bold text-slate-900">Artikel tidak ditemukan atau di-draft.</h2><a href="index.html" class="text-xs font-semibold uppercase tracking-wider text-slate-800 border-b border-slate-800 mt-6 inline-block">Kembali ke Beranda</a></div>`;
+            main.innerHTML = `<div class="text-center py-20"><h2 class="text-xl font-bold text-slate-900">Artikel tidak ditemukan.</h2><a href="index.html" class="text-xs font-semibold uppercase tracking-wider text-slate-800 border-b border-slate-800 mt-6 inline-block">Kembali ke Beranda</a></div>`;
           }
         }
       } catch (err) {
@@ -317,6 +408,139 @@
       }
     }
 
+    // Sistem Komentar
+    async function loadComments(internalArticleId) {
+      const container = document.getElementById("commentsContainer");
+      try {
+        const res = await fetch(`${API_URL}?action=getComments&articleId=${encodeURIComponent(internalArticleId)}`);
+        const json = await res.json();
+        if (json.success && json.data.length > 0) {
+          container.innerHTML = json.data.map(c => `
+            <div class="pt-4 first:pt-0">
+              <div class="flex items-center justify-between mb-1">
+                <span class="font-bold text-xs uppercase tracking-wider text-slate-900">${escapeHtml(c.Name)}</span>
+                <span class="text-[10px] text-gray-400 font-mono">${formatHumanWibDate(c.Date)}</span>
+              </div>
+              <p class="text-xs text-slate-600 font-light leading-relaxed">${escapeHtml(c.Comment).replace(/\n/g, '<br>')}</p>
+            </div>
+          `).join('');
+        } else {
+          container.innerHTML = `<p class="text-xs text-gray-400 font-light pt-2">Belum ada komentar pada artikel ini. Jadilah yang pertama berkomentar!</p>`;
+        }
+      } catch (err) {
+        container.innerHTML = `<p class="text-xs text-rose-500 pt-2">Gagal memuat komentar.</p>`;
+      }
+    }
+
+    async function submitComment(e, internalArticleId) {
+      e.preventDefault();
+      const nameInput = document.getElementById("commentName");
+      const bodyInput = document.getElementById("commentBody");
+      const btn = document.getElementById("commentBtn");
+
+      const name = nameInput.value.trim();
+      const comment = bodyInput.value.trim();
+
+      if (!name || !comment) {
+        showToast("Nama dan komentar wajib diisi.", false);
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = "Mengirim...";
+
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'addComment',
+            articleId: internalArticleId,
+            name: name,
+            comment: comment
+          })
+        });
+        const result = await res.json();
+
+        if (result.success) {
+          showToast("Komentar Anda berhasil dikirim!");
+          nameInput.value = "";
+          bodyInput.value = "";
+          loadComments(internalArticleId);
+        } else {
+          showToast(result.message || "Komentar gagal dikirim.", false);
+        }
+      } catch (err) {
+        showToast("Terjadi gangguan koneksi internet.", false);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Kirim Komentar";
+      }
+    }
+
+    function escapeHtml(text) {
+      if (!text) return "";
+      return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // Sistem Berbagi Multi-Platform (P3)
+    function getCleanArticleShareUrl(slug) {
+      const currentOrigin = window.location.origin;
+      const currentPath = window.location.pathname;
+      const basePath = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
+      return `${currentOrigin}${basePath}artikel.html?slug=${encodeURIComponent(slug)}`;
+    }
+
+    function shareToPlatform(platform, slug) {
+      const shareUrl = getCleanArticleShareUrl(slug);
+      const text = encodeURIComponent(document.title);
+      let target = "";
+
+      if (platform === 'wa') {
+        target = `https://api.whatsapp.com/send?text=${text}%20${encodeURIComponent(shareUrl)}`;
+      } else if (platform === 'fb') {
+        target = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
+      } else if (platform === 'tw') {
+        target = `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${text}`;
+      }
+
+      if (target) window.open(target, '_blank', 'noopener,noreferrer');
+    }
+
+    function salinTautanDirect(slug) {
+      const shareUrl = getCleanArticleShareUrl(slug);
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(shareUrl).then(() => {
+          showToast("Tautan berhasil disalin!");
+        }).catch(() => {
+          fallbackSalin(shareUrl);
+        });
+      } else {
+        fallbackSalin(shareUrl);
+      }
+    }
+
+    function fallbackSalin(text) {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        showToast("Tautan berhasil disalin!");
+      } catch (err) {
+        showToast("Tautan tidak dapat disalin.", false);
+      }
+      textArea.remove();
+    }
+
+    // List Artikel
     async function loadList(searchQuery) {
       const main = document.getElementById("mainContainer");
       try {
@@ -360,7 +584,7 @@
                   </div>
                   <div class="flex items-center justify-between text-[11px] text-gray-400 border-t border-gray-50 pt-4 mt-2">
                     <span class="font-medium text-slate-700">${art.Author}</span>
-                    <span>${art.Date}</span>
+                    <span>${formatHumanWibDate(art.Date)}</span>
                   </div>
                 </div>
               </article>
@@ -373,45 +597,6 @@
       } catch (err) {
         main.innerHTML = `<p class="text-red-500 text-center text-sm">Gagal memuat daftar artikel: ${err.message}</p>`;
       }
-    }
-
-    // Fungsi untuk membuat format URL share.php, menyalin ke clipboard, dan menampilkan alert
-    function salinTautanShare(customSlug) {
-      const urlParams = new URLSearchParams(window.location.search);
-      const slug = customSlug || urlParams.get('slug') || urlParams.get('id') || '';
-      
-      const currentOrigin = window.location.origin;
-      const currentPath = window.location.pathname;
-      const basePath = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
-      const shareUrl = `${currentOrigin}${basePath}share.php?slug=${encodeURIComponent(slug)}`;
-
-      if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(shareUrl).then(() => {
-          alert("Tautan berhasil disalin:\n" + shareUrl);
-        }).catch(() => {
-          fallbackSalinTeks(shareUrl);
-        });
-      } else {
-        fallbackSalinTeks(shareUrl);
-      }
-    }
-
-    function fallbackSalinTeks(text) {
-      const textArea = document.createElement("textarea");
-      textArea.value = text;
-      textArea.style.position = "fixed";
-      textArea.style.left = "-999999px";
-      textArea.style.top = "-999999px";
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      try {
-        document.execCommand('copy');
-        alert("Tautan berhasil disalin:\n" + text);
-      } catch (err) {
-        alert("Gagal menyalin tautan: " + err);
-      }
-      textArea.remove();
     }
   </script>
 </body>

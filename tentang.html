@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tentang Kami - Alvaro News</title>
+  <link rel="icon" type="image/x-icon" id="dynamicFavicon" href="https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=64">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
@@ -20,7 +21,12 @@
   <header class="bg-white border-b border-gray-100 sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
       <div class="flex items-center gap-2">
-        <span class="text-2xl font-black tracking-tight text-slate-900">ALVARO <span class="font-light text-gray-500">NEWS</span></span>
+        <a href="index.html" class="flex items-center gap-3" id="siteHeaderBrand">
+          <span class="site-header-logo-container hidden"><img id="siteHeaderLogo" src="" alt="Logo" class="h-9 w-auto object-contain"></span>
+          <span id="siteHeaderTitle" class="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
+            <i class="fa-solid fa-feather-pointed text-slate-800" id="siteDefaultIcon"></i> ALVARO <span class="font-light text-gray-500">NEWS</span>
+          </span>
+        </a>
       </div>
       <nav class="hidden md:flex space-x-8 text-sm font-semibold uppercase tracking-wider text-gray-500">
         <a href="index.html" class="hover:text-slate-950 transition">Beranda</a>
@@ -45,8 +51,6 @@
 
   <!-- Main Content -->
   <main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16 space-y-24 flex-grow">
-    
-    <!-- Tentang Website & Visi Misi -->
     <section class="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
       <div>
         <h2 class="text-2xl font-black uppercase tracking-wider text-slate-900 mb-6 pb-2 border-b border-slate-900">Visi & Misi Kami</h2>
@@ -75,7 +79,7 @@
       </div>
     </section>
 
-    <!-- Nilai-Nilai Utama -->
+    <!-- Nilai Utama -->
     <section class="space-y-12">
       <h2 class="text-2xl font-black uppercase tracking-wider text-slate-900 text-center">Nilai-Nilai Utama</h2>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-8">
@@ -96,36 +100,44 @@
         </div>
       </div>
     </section>
-
-    <!-- Statistik -->
-    <section class="bg-white p-10 rounded-3xl border border-gray-100 grid grid-cols-1 sm:grid-cols-3 gap-8 text-center divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
-      <div>
-        <h2 class="text-4xl font-black text-slate-900">5M+</h2>
-        <p class="text-xs text-gray-400 uppercase tracking-widest font-extrabold mt-2">Views Per Bulan</p>
-      </div>
-      <div class="pt-6 sm:pt-0">
-        <h2 class="text-4xl font-black text-slate-900">24/7</h2>
-        <p class="text-xs text-gray-400 uppercase tracking-widest font-extrabold mt-2">Informasi Update</p>
-      </div>
-      <div class="pt-6 sm:pt-0">
-        <h2 class="text-4xl font-black text-slate-900">100%</h2>
-        <p class="text-xs text-gray-400 uppercase tracking-widest font-extrabold mt-2">Kredibilitas Konten</p>
-      </div>
-    </section>
-
   </main>
 
   <!-- Footer -->
   <footer class="bg-slate-950 text-gray-400 py-12">
-    <div class="max-w-7xl mx-auto px-4 text-center text-sm font-light">
+    <div class="max-w-7xl mx-auto px-4 text-center text-sm font-light" id="footerBrand">
       © 2026 Alvaro News. Hak Cipta Dilindungi.
     </div>
   </footer>
 
+  <script src="config.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", function() {
+      loadSiteSettings();
       setupMobileMenu();
     });
+
+    async function loadSiteSettings() {
+      try {
+        const res = await fetch(`${API_URL}?action=getSettings`);
+        const json = await res.json();
+        if (json.success && json.data) {
+          const s = json.data;
+          if (s.site_name) {
+            document.getElementById("siteHeaderTitle").innerText = s.site_name;
+            const ft = document.getElementById("footerBrand");
+            if (ft) ft.innerText = `© 2026 ${s.site_name}. Hak Cipta Dilindungi.`;
+          }
+          if (s.site_logo) {
+            const logoImg = document.getElementById("siteHeaderLogo");
+            logoImg.src = s.site_logo;
+            logoImg.parentElement.classList.remove("hidden");
+            const defIcon = document.getElementById("siteDefaultIcon");
+            if (defIcon) defIcon.classList.add("hidden");
+          }
+          if (s.site_favicon) document.getElementById("dynamicFavicon").href = s.site_favicon;
+        }
+      } catch (e) { console.error(e); }
+    }
 
     function setupMobileMenu() {
       const headerContainer = document.querySelector('header > div');
@@ -160,19 +172,9 @@
         `;
         document.body.appendChild(offCanvas);
 
-        mobileMenuBtn.addEventListener('click', () => {
-          offCanvas.classList.remove('translate-x-full');
-        });
-
-        offCanvas.querySelector('#close-offcanvas').addEventListener('click', () => {
-          offCanvas.classList.add('translate-x-full');
-        });
-
-        offCanvas.addEventListener('click', (e) => {
-          if (e.target === offCanvas) {
-            offCanvas.classList.add('translate-x-full');
-          }
-        });
+        mobileMenuBtn.addEventListener('click', () => { offCanvas.classList.remove('translate-x-full'); });
+        offCanvas.querySelector('#close-offcanvas').addEventListener('click', () => { offCanvas.classList.add('translate-x-full'); });
+        offCanvas.addEventListener('click', (e) => { if (e.target === offCanvas) offCanvas.classList.add('translate-x-full'); });
       }
     }
   </script>
