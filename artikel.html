@@ -778,7 +778,7 @@
 
       }
     }
-s
+
     function escapeHtml(text) {
       if (!text) return "";
       return String(text)
@@ -845,59 +845,158 @@ s
     // List Artikel
     async function loadList(searchQuery) {
       const main = document.getElementById("mainContainer");
+
+      if (!main) return;
+
       try {
-        const res = await fetch(`${API_URL}?action=getArticles`);
-        const result = await res.json();
 
-        if (result.success) {
-          let articles = result.data;
-          let titlePrefix = "Semua Artikel";
+        // ==========================================
+        // 1. AMBIL ARTIKEL PUBLISHED DARI SUPABASE
+        // ==========================================
+        const { data: articleRows, error: articleError } =
+          await supabaseClient
+            .from('articles')
+            .select(`
+              *,
+              categories (
+                name
+              )
+            `)
+            .eq('status', 'Published')
+            .order('date', { ascending: false });
 
-          if (searchQuery) {
-            articles = articles.filter(art => 
-              art.Title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-              art.Content.toLowerCase().includes(searchQuery.toLowerCase())
-            );
-            titlePrefix = `Hasil Pencarian: "${searchQuery}"`;
-          }
-
-          document.title = `${titlePrefix} - Alvaro News`;
-
-          let htmlContent = `
-            <h1 class="text-2xl font-black uppercase tracking-wider text-slate-900 mb-8 border-b-2 border-slate-900 pb-3">${titlePrefix}</h1>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-          `;
-
-          if (articles.length === 0) {
-            htmlContent += `<p class="col-span-2 text-center text-gray-400 font-light py-12">Tidak ada artikel yang cocok.</p>`;
-          } else {
-            htmlContent += articles.map(art => `
-              <article class="bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col hover:shadow-md transition duration-300 group">
-                <div class="overflow-hidden">
-                  <img src="${art.Thumbnail || 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=500'}" class="h-48 w-full object-cover group-hover:scale-105 transition duration-500">
-                </div>
-                <div class="p-6 flex-grow flex flex-col justify-between">
-                  <div>
-                    <span class="text-[10px] font-extrabold text-slate-500 tracking-wider uppercase">${art.Category}</span>
-                    <h3 class="text-base font-bold text-slate-900 mt-2 mb-2 line-clamp-2 hover:text-slate-700 transition">
-                      <a href="artikel.html?slug=${art.Slug}">${art.Title}</a>
-                    </h3>
-                    <p class="text-xs text-gray-400 line-clamp-2 mb-4 font-light">${art.Summary}</p>
-                  </div>
-                  <div class="flex items-center justify-between text-[11px] text-gray-400 border-t border-gray-50 pt-4 mt-2">
-                    <span class="font-medium text-slate-700">${art.Author}</span>
-                    <span>${formatHumanWibDate(art.Date)}</span>
-                  </div>
-                </div>
-              </article>
-            `).join('');
-          }
-
-          htmlContent += `</div>`;
-          main.innerHTML = htmlContent;
+        if (articleError) {
+          throw articleError;
         }
-      } catch (err) {
-        main.innerHTML = `<p class="text-red-500 text-center text-sm">Gagal memuat daftar artikel: ${err.message}</p>`;
+
+        // ==========================================
+        // 2. SESUAIKAN DENGAN STRUKTUR LAMA
+        // ==========================================
+        let articles = (articleRows || []).map(item => ({
+          ID: item.id,
+          Title: item.title,
+          Slug: item.slug,
+          Summary: item.summary,
+          Content: item.content,
+          Category: item.categories?.name || '-',
+          CategoryId: item.category_id,
+          Thumbnail: item.thumbnail,
+          Author: item.author,
+          Date: item.date,
+          Status: item.status,
+          Views: item.views || 0,
+          IsEditorChoice: item.is_editor_choice
+        }));
+
+        // ==========================================
+        // 3. FILTER PENCARIAN
+        // ==========================================
+        if (searchQuery && searchQuery.trim() !== '') {
+
+          const keyword = searchQuery.trim().toLowerCase();
+
+          articles = articles.filter(article => {
+
+            const title = (article.Title || '').toLowerCase();
+            const content = (article.Content || '').toLowerCase();
+            const summary = (article.Summary || '').toLowerCase();
+            const category = (article.Category || '').toLowerCase();
+
+            return (
+              title.includes(keyword) ||
+              content.includes(keyword) ||
+              summary.includes(keyword) ||
+              category.includes(keyword)
+            );
+
+          });
+        }
+
+        // ==========================================
+        // 4. TAMPILKAN HASIL
+        // ==========================================
+        if (typeof renderArticles === 'function') {
+
+          renderArticles(articles);
+
+        } else {
+
+          // Fallback jika halaman tidak mempunyai
+          // fungsi renderArticles.
+          if (articles.length === 0) {
+
+            main.innerHTML = `
+              <div class="text-center py-20">
+                <i class="fa-solid fa-newspaper text-4xl text-gray-300 mb-4"></i>
+
+                <h2 class="text-xl font-bold text-slate-900">
+                  Tidak ada artikel ditemukan.
+                </h2>
+
+                <p class="text-sm text-gray-400 mt-2">
+                  Coba gunakan kata kunci pencarian lain.
+                </p>
+              </div>
+            `;
+
+            return;
+          }
+
+          main.innerHTML = articles.map(article => `
+            <article class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              
+              <img
+                src="${article.Thumbnail || 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=500'}"
+                alt="${escapeHtml(article.Title)}"
+                class="w-full h-56 object-cover"
+              >
+
+              <div class="p-6">
+
+                <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                  ${escapeHtml(article.Category)}
+                </span>
+
+                <h2 class="text-xl font-bold text-slate-900 mt-2 mb-3">
+                  <a href="artikel.html?slug=${encodeURIComponent(article.Slug)}">
+                    ${escapeHtml(article.Title)}
+                  </a>
+                </h2>
+
+                <p class="text-sm text-gray-500 leading-relaxed">
+                  ${escapeHtml(article.Summary || '')}
+                </p>
+
+                <div class="mt-5 pt-4 border-t border-gray-100 text-xs text-gray-400 flex justify-between">
+                  <span>${escapeHtml(article.Author || '')}</span>
+                  <span>${formatHumanWibDate(article.Date)}</span>
+                </div>
+
+              </div>
+
+            </article>
+          `).join('');
+        }
+
+      } catch (error) {
+
+        console.error("Gagal memuat daftar artikel dari Supabase:", error);
+
+        main.innerHTML = `
+          <div class="text-center py-20">
+
+            <i class="fa-solid fa-circle-exclamation text-3xl text-rose-400 mb-4"></i>
+
+            <h2 class="text-xl font-bold text-slate-900">
+              Gagal memuat artikel.
+            </h2>
+
+            <p class="text-sm text-gray-400 mt-2">
+              Silakan coba muat ulang halaman.
+            </p>
+
+          </div>
+        `;
       }
     }
   </script>
