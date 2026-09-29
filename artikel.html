@@ -96,6 +96,7 @@
     </div>
   </footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", function() {
@@ -274,138 +275,351 @@
     }
 
     // Detail Artikel
-    async function loadDetail(idOrSlug) {
+      async function loadDetail(idOrSlug) {
       const main = document.getElementById("mainContainer");
+
       try {
+        // ==========================================
+        // 1. AMBIL ARTIKEL DARI SUPABASE
+        // ==========================================
+        let query = supabaseClient
+          .from('articles')
+          .select(`
+            *,
+            categories (
+              name
+            )
+          `)
+          .eq('status', 'Published');
+
+        // Jika parameter berupa slug, cari berdasarkan slug.
+        // Jika berupa ID, cari berdasarkan ID.
+        if (idOrSlug.startsWith('ART-')) {
+          query = query.eq('id', idOrSlug);
+        } else {
+          query = query.eq('slug', idOrSlug);
+        }
+
+        const { data: articleRows, error: articleError } = await query.maybeSingle();
+
+        if (articleError) {
+          throw articleError;
+        }
+
+        if (!articleRows) {
+          main.innerHTML = `
+            <div class="text-center py-20">
+              <h2 class="text-xl font-bold text-slate-900">
+                Artikel tidak ditemukan.
+              </h2>
+              <a href="index.html"
+                class="text-xs font-semibold uppercase tracking-wider text-slate-800 border-b border-slate-800 mt-6 inline-block">
+                Kembali ke Beranda
+              </a>
+            </div>
+          `;
+          return;
+        }
+
+        // ==========================================
+        // 2. SESUAIKAN DATA SUPABASE
+        // DENGAN STRUKTUR LAMA
+        // ==========================================
+        const art = {
+          ID: articleRows.id,
+          Title: articleRows.title,
+          Slug: articleRows.slug,
+          Summary: articleRows.summary,
+          Content: articleRows.content,
+          Category: articleRows.categories?.name || '-',
+          CategoryId: articleRows.category_id,
+          Thumbnail: articleRows.thumbnail,
+          Author: articleRows.author,
+          Date: articleRows.date,
+          Status: articleRows.status,
+          Views: articleRows.views || 0,
+          IsEditorChoice: articleRows.is_editor_choice
+        };
+
+        // ==========================================
+        // 3. UPDATE SEO
+        // ==========================================
+        updateSEOMetadata(art);
+
+        const safeHtml = sanitizeAndFormatContent(art.Content);
+
+        // ==========================================
+        // 4. AMBIL ARTIKEL LAIN
+        // ==========================================
+        const { data: otherRows, error: otherError } = await supabaseClient
+          .from('articles')
+          .select(`
+            *,
+            categories (
+              name
+            )
+          `)
+          .eq('status', 'Published')
+          .neq('id', art.ID)
+          .order('date', { ascending: false })
+          .limit(3);
+
+        if (otherError) {
+          console.error("Gagal memuat artikel lainnya:", otherError);
+        }
+
+        const otherArticles = (otherRows || []).map(item => ({
+          ID: item.id,
+          Title: item.title,
+          Slug: item.slug,
+          Summary: item.summary,
+          Content: item.content,
+          Category: item.categories?.name || '-',
+          CategoryId: item.category_id,
+          Thumbnail: item.thumbnail,
+          Author: item.author,
+          Date: item.date,
+          Status: item.status,
+          Views: item.views || 0,
+          IsEditorChoice: item.is_editor_choice
+        }));
+
+        let otherArticlesHtml = '';
+
+        if (otherArticles.length > 0) {
+          otherArticlesHtml = `
+            <section class="mt-16 pt-12 border-t border-gray-100">
+              <h2 class="text-xl font-black uppercase tracking-wider text-slate-900 mb-8 pb-3 border-b border-slate-900 flex items-center gap-2">
+                <i class="fa-solid fa-newspaper text-slate-800"></i>
+                Baca Berita Lainnya
+              </h2>
+
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                ${otherArticles.map(item => `
+                  <article class="bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col hover:shadow-md transition duration-300 group">
+
+                    <div class="overflow-hidden">
+                      <img
+                        src="${item.Thumbnail || 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=500'}"
+                        alt="${item.Title}"
+                        class="h-36 w-full object-cover group-hover:scale-105 transition duration-500"
+                      >
+                    </div>
+
+                    <div class="p-5 flex flex-col justify-between flex-grow">
+                      <div>
+                        <span class="text-[10px] font-extrabold text-slate-500 tracking-wider uppercase">
+                          ${item.Category}
+                        </span>
+
+                        <h3 class="text-sm font-bold text-slate-900 mt-1 mb-2 line-clamp-2 hover:text-slate-700 transition">
+                          <a href="artikel.html?slug=${item.Slug}">
+                            ${item.Title}
+                          </a>
+                        </h3>
+                      </div>
+
+                      <div class="text-[10px] text-gray-400 border-t border-gray-50 pt-3 mt-2 flex justify-between">
+                        <span>${item.Author}</span>
+                        <span>${formatHumanWibDate(item.Date)}</span>
+                      </div>
+                    </div>
+
+                  </article>
+                `).join('')}
+              </div>
+            </section>
+          `;
+        }
+
+        // ==========================================
+        // 5. RENDER ARTIKEL
+        // ==========================================
+        main.innerHTML = `
+          <article class="bg-white rounded-3xl border border-gray-100 p-8 sm:p-12">
+
+            <nav class="text-xs uppercase tracking-wider text-gray-400 mb-6 flex gap-2">
+              <a href="index.html" class="hover:text-slate-900 transition">
+                Beranda
+              </a>
+
+              <span>/</span>
+
+              <a href="artikel.html" class="hover:text-slate-900 transition">
+                Artikel
+              </a>
+
+              <span>/</span>
+
+              <span class="text-slate-800 font-bold">
+                ${art.Category}
+              </span>
+            </nav>
+
+            <h1 class="text-3xl sm:text-5xl font-black text-slate-900 mb-6 leading-tight tracking-tight break-words">
+              ${art.Title}
+            </h1>
+
+            <div class="flex flex-wrap items-center gap-4 text-xs text-gray-400 mb-6 pb-4 border-b border-gray-100">
+              <span>
+                Oleh:
+                <strong class="text-slate-900">${art.Author}</strong>
+              </span>
+
+              <span>•</span>
+
+              <span>${formatHumanWibDate(art.Date)}</span>
+            </div>
+
+            <!-- Menu Bagikan -->
+            <div class="mb-8 p-4 bg-gray-50 rounded-2xl border border-gray-100 flex flex-wrap items-center justify-between gap-4">
+
+              <span class="text-xs uppercase tracking-wider font-extrabold text-slate-700 flex items-center gap-2">
+                <i class="fa-solid fa-share-nodes text-slate-900"></i>
+                Bagikan Artikel Ini
+              </span>
+
+              <div class="flex flex-wrap items-center gap-2">
+
+                <button type="button"
+                  onclick="shareToPlatform('wa', '${art.Slug}')"
+                  class="px-3.5 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold flex items-center gap-1.5 transition">
+                  <i class="fa-brands fa-whatsapp text-sm"></i>
+                  WhatsApp
+                </button>
+
+                <button type="button"
+                  onclick="shareToPlatform('fb', '${art.Slug}')"
+                  class="px-3.5 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1.5 transition">
+                  <i class="fa-brands fa-facebook-f text-xs"></i>
+                  Facebook
+                </button>
+
+                <button type="button"
+                  onclick="shareToPlatform('tw', '${art.Slug}')"
+                  class="px-3.5 py-1.5 rounded-full bg-slate-900 hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition">
+                  <i class="fa-brands fa-x-twitter text-xs"></i>
+                  X / Twitter
+                </button>
+
+                <button type="button"
+                  onclick="salinTautanDirect('${art.Slug}')"
+                  class="px-3.5 py-1.5 rounded-full bg-white border border-gray-200 hover:bg-gray-100 text-slate-800 text-xs font-semibold flex items-center gap-1.5 transition shadow-sm">
+                  <i class="fa-solid fa-link text-xs"></i>
+                  Salin Tautan
+                </button>
+
+              </div>
+            </div>
+
+            <img
+              src="${art.Thumbnail || 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=500'}"
+              alt="${art.Title}"
+              class="w-full h-auto rounded-2xl mb-10 object-cover max-h-[500px]"
+            >
+
+            <div class="article-rendered-body prose max-w-none text-slate-700 text-[15px] sm:text-[17px] font-light">
+              ${safeHtml}
+            </div>
+
+          </article>
+
+          <!-- Kolom Komentar -->
+          <section class="bg-white rounded-3xl border border-gray-100 p-8 sm:p-12 mt-12">
+
+            <h2 class="text-xl font-black uppercase tracking-wider text-slate-900 mb-6 pb-2 border-b border-gray-100 flex items-center gap-2">
+              <i class="fa-regular fa-comments text-slate-900"></i>
+              Komentar
+            </h2>
+
+            <form
+              id="commentForm"
+              onsubmit="submitComment(event, '${art.ID}')"
+              class="space-y-4 mb-10"
+            >
+
+              <div>
+                <label class="block text-xs uppercase tracking-wider font-bold text-slate-700 mb-2">
+                  Nama Anda
+                </label>
+
+                <input
+                  type="text"
+                  id="commentName"
+                  required
+                  maxlength="50"
+                  placeholder="Tuliskan nama lengkap atau panggilan..."
+                  class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-slate-950"
+                >
+              </div>
+
+              <div>
+                <label class="block text-xs uppercase tracking-wider font-bold text-slate-700 mb-2">
+                  Isi Komentar
+                </label>
+
+                <textarea
+                  id="commentBody"
+                  rows="4"
+                  required
+                  maxlength="1000"
+                  placeholder="Tulis komentar konstruktif Anda di sini..."
+                  class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-slate-950"
+                ></textarea>
+              </div>
+
+              <button
+                type="submit"
+                id="commentBtn"
+                class="bg-slate-900 hover:bg-slate-800 text-white text-xs uppercase tracking-wider font-semibold px-6 py-3 rounded-full transition"
+              >
+                Kirim Komentar
+              </button>
+
+            </form>
+
+            <div class="space-y-4">
+
+              <h3 class="text-xs uppercase tracking-wider font-extrabold text-slate-400">
+                Daftar Komentar
+              </h3>
+
+              <div id="commentsContainer" class="space-y-4 divide-y divide-gray-50">
+                <p class="text-xs text-gray-400 font-light pt-2">
+                  Memuat komentar...
+                </p>
+              </div>
+
+            </div>
+
+          </section>
+
+          ${otherArticlesHtml}
+        `;
+
+        // Komentar masih menggunakan Apps Script untuk sementara
+        loadComments(art.ID);
+
+        // Views masih menggunakan Apps Script untuk sementara
         fetch(API_URL, {
           method: 'POST',
-          body: JSON.stringify({ action: 'incrementView', id: idOrSlug })
+          body: JSON.stringify({
+            action: 'incrementView',
+            id: art.ID
+          })
+        }).catch(err => {
+          console.warn("Increment view lama gagal:", err);
         });
 
-        const res = await fetch(`${API_URL}?action=getArticles`);
-        const result = await res.json();
-        
-        if (result.success) {
-          const art = result.data.find(item => item.Slug === idOrSlug || item.ID === idOrSlug);
-          if (art) {
-            updateSEOMetadata(art);
-            const safeHtml = sanitizeAndFormatContent(art.Content);
-
-            const otherArticles = result.data
-              .filter(item => item.ID !== art.ID && item.Slug !== art.Slug)
-              .slice(0, 3);
-
-            let otherArticlesHtml = '';
-            if (otherArticles.length > 0) {
-              otherArticlesHtml = `
-                <section class="mt-16 pt-12 border-t border-gray-100">
-                  <h2 class="text-xl font-black uppercase tracking-wider text-slate-900 mb-8 pb-3 border-b border-slate-900 flex items-center gap-2">
-                    <i class="fa-solid fa-newspaper text-slate-800"></i> Baca Berita Lainnya
-                  </h2>
-                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                    ${otherArticles.map(item => `
-                      <article class="bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col hover:shadow-md transition duration-300 group">
-                        <div class="overflow-hidden">
-                          <img src="${item.Thumbnail || 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=500'}" alt="${item.Title}" class="h-36 w-full object-cover group-hover:scale-105 transition duration-500">
-                        </div>
-                        <div class="p-5 flex flex-col justify-between flex-grow">
-                          <div>
-                            <span class="text-[10px] font-extrabold text-slate-500 tracking-wider uppercase">${item.Category}</span>
-                            <h3 class="text-sm font-bold text-slate-900 mt-1 mb-2 line-clamp-2 hover:text-slate-700 transition">
-                              <a href="artikel.html?slug=${item.Slug}">${item.Title}</a>
-                            </h3>
-                          </div>
-                          <div class="text-[10px] text-gray-400 border-t border-gray-50 pt-3 mt-2 flex justify-between">
-                            <span>${item.Author}</span>
-                            <span>${formatHumanWibDate(item.Date)}</span>
-                          </div>
-                        </div>
-                      </article>
-                    `).join('')}
-                  </div>
-                </section>
-              `;
-            }
-
-            main.innerHTML = `
-              <article class="bg-white rounded-3xl border border-gray-100 p-8 sm:p-12">
-                <nav class="text-xs uppercase tracking-wider text-gray-400 mb-6 flex gap-2">
-                  <a href="index.html" class="hover:text-slate-900 transition">Beranda</a> <span>/</span> 
-                  <a href="artikel.html" class="hover:text-slate-900 transition">Artikel</a> <span>/</span> 
-                  <span class="text-slate-800 font-bold">${art.Category}</span>
-                </nav>
-                <h1 class="text-3xl sm:text-5xl font-black text-slate-900 mb-6 leading-tight tracking-tight break-words">${art.Title}</h1>
-                <div class="flex flex-wrap items-center gap-4 text-xs text-gray-400 mb-6 pb-4 border-b border-gray-100">
-                  <span>Oleh: <strong class="text-slate-900">${art.Author}</strong></span>
-                  <span>•</span>
-                  <span>${formatHumanWibDate(art.Date)}</span>
-                </div>
-                
-                <!-- Menu Bagikan (P3) -->
-                <div class="mb-8 p-4 bg-gray-50 rounded-2xl border border-gray-100 flex flex-wrap items-center justify-between gap-4">
-                  <span class="text-xs uppercase tracking-wider font-extrabold text-slate-700 flex items-center gap-2">
-                    <i class="fa-solid fa-share-nodes text-slate-900"></i> Bagikan Artikel Ini
-                  </span>
-                  <div class="flex flex-wrap items-center gap-2">
-                    <button type="button" onclick="shareToPlatform('wa', '${art.Slug}')" class="px-3.5 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold flex items-center gap-1.5 transition">
-                      <i class="fa-brands fa-whatsapp text-sm"></i> WhatsApp
-                    </button>
-                    <button type="button" onclick="shareToPlatform('fb', '${art.Slug}')" class="px-3.5 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1.5 transition">
-                      <i class="fa-brands fa-facebook-f text-xs"></i> Facebook
-                    </button>
-                    <button type="button" onclick="shareToPlatform('tw', '${art.Slug}')" class="px-3.5 py-1.5 rounded-full bg-slate-900 hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition">
-                      <i class="fa-brands fa-x-twitter text-xs"></i> X / Twitter
-                    </button>
-                    <button type="button" onclick="salinTautanDirect('${art.Slug}')" class="px-3.5 py-1.5 rounded-full bg-white border border-gray-200 hover:bg-gray-100 text-slate-800 text-xs font-semibold flex items-center gap-1.5 transition shadow-sm">
-                      <i class="fa-solid fa-link text-xs"></i> Salin Tautan
-                    </button>
-                  </div>
-                </div>
-
-                <img src="${art.Thumbnail}" alt="${art.Title}" class="w-full h-auto rounded-2xl mb-10 object-cover max-h-[500px]">
-                <div class="article-rendered-body prose max-w-none text-slate-700 text-[15px] sm:text-[17px] font-light">
-                  ${safeHtml}
-                </div>
-              </article>
-
-              <!-- Kolom Komentar (P4, P5, P6) -->
-              <section class="bg-white rounded-3xl border border-gray-100 p-8 sm:p-12 mt-12">
-                <h2 class="text-xl font-black uppercase tracking-wider text-slate-900 mb-6 pb-2 border-b border-gray-100 flex items-center gap-2">
-                  <i class="fa-regular fa-comments text-slate-900"></i> Komentar
-                </h2>
-                
-                <form id="commentForm" onsubmit="submitComment(event, '${art.ID}')" class="space-y-4 mb-10">
-                  <div>
-                    <label class="block text-xs uppercase tracking-wider font-bold text-slate-700 mb-2">Nama Anda</label>
-                    <input type="text" id="commentName" required maxlength="50" placeholder="Tuliskan nama lengkap atau panggilan..." class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-slate-950">
-                  </div>
-                  <div>
-                    <label class="block text-xs uppercase tracking-wider font-bold text-slate-700 mb-2">Isi Komentar</label>
-                    <textarea id="commentBody" rows="4" required maxlength="1000" placeholder="Tulis komentar konstruktif Anda di sini..." class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-slate-950"></textarea>
-                  </div>
-                  <button type="submit" id="commentBtn" class="bg-slate-900 hover:bg-slate-800 text-white text-xs uppercase tracking-wider font-semibold px-6 py-3 rounded-full transition">
-                    Kirim Komentar
-                  </button>
-                </form>
-
-                <div class="space-y-4">
-                  <h3 class="text-xs uppercase tracking-wider font-extrabold text-slate-400">Daftar Komentar</h3>
-                  <div id="commentsContainer" class="space-y-4 divide-y divide-gray-50">
-                    <p class="text-xs text-gray-400 font-light pt-2">Memuat komentar...</p>
-                  </div>
-                </div>
-              </section>
-
-              ${otherArticlesHtml}
-            `;
-
-            loadComments(art.ID);
-          } else {
-            main.innerHTML = `<div class="text-center py-20"><h2 class="text-xl font-bold text-slate-900">Artikel tidak ditemukan.</h2><a href="index.html" class="text-xs font-semibold uppercase tracking-wider text-slate-800 border-b border-slate-800 mt-6 inline-block">Kembali ke Beranda</a></div>`;
-          }
-        }
       } catch (err) {
-        main.innerHTML = `<p class="text-red-500 text-center text-sm">Gagal memuat artikel: ${err.message}</p>`;
+
+        console.error("Gagal memuat artikel dari Supabase:", err);
+
+        main.innerHTML = `
+          <p class="text-red-500 text-center text-sm">
+            Gagal memuat artikel: ${escapeHtml(err.message)}
+          </p>
+        `;
       }
     }
 
