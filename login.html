@@ -155,21 +155,15 @@
     async function handleLogin(e) {
       e.preventDefault();
 
-      const password =
-        document.getElementById("password").value;
-
-      const btn =
-        document.getElementById("loginBtn");
-
-      const err =
-        document.getElementById("errorMessage");
+      const password = document.getElementById("password").value;
+      const btn = document.getElementById("loginBtn");
+      const err = document.getElementById("errorMessage");
 
       btn.disabled = true;
       btn.innerText = "Memverifikasi...";
       err.classList.add("hidden");
 
       try {
-
         const { data, error } =
           await supabaseClient.auth.signInWithPassword({
             email: ADMIN_EMAIL,
@@ -177,43 +171,24 @@
           });
 
         if (error) {
-          console.error(
-            "Supabase Login Error:",
-            error
-          );
-
-          err.innerText =
-            "Password yang Anda masukkan salah.";
-
+          console.error(error);
+          err.innerText = "Password yang Anda masukkan salah.";
           err.classList.remove("hidden");
           return;
         }
 
         if (!data.session) {
-          throw new Error(
-            "Session login tidak berhasil dibuat."
-          );
+          throw new Error("Session tidak terbentuk.");
         }
-
-        // Supabase Auth otomatis menyimpan session.
-        // Tidak perlu sessionStorage adminToken.
 
         window.location.href = "admin.html";
 
       } catch (error) {
-
-        console.error(
-          "Gagal melakukan login:",
-          error
-        );
-
-        err.innerText =
-          "Terjadi gangguan saat proses login.";
-
+        console.error(error);
+        err.innerText = "Terjadi gangguan saat login.";
         err.classList.remove("hidden");
 
       } finally {
-
         btn.disabled = false;
         btn.innerText = "Masuk";
       }
