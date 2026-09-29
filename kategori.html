@@ -53,11 +53,14 @@
     </div>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
+
   <script>
     document.addEventListener("DOMContentLoaded", function() {
       const urlParams = new URLSearchParams(window.location.search);
       const catParam = urlParams.get('cat');
+
       loadSiteSettings();
       loadCategories(catParam);
       setupMobileMenu();
@@ -65,68 +68,171 @@
 
     function formatHumanWibDate(dateStr) {
       if (!dateStr) return "-";
+
       const str = String(dateStr).trim();
-      const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-      
-      const customMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+
+      const months = [
+        "Januari", "Februari", "Maret", "April",
+        "Mei", "Juni", "Juli", "Agustus",
+        "September", "Oktober", "November", "Desember"
+      ];
+
+      const customMatch = str.match(
+        /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/
+      );
+
       if (customMatch) {
         const year = customMatch[1];
         const month = months[parseInt(customMatch[2], 10) - 1];
         const day = parseInt(customMatch[3], 10);
         const hour = customMatch[4] || "00";
         const min = customMatch[5] || "00";
+
         return `${day} ${month} ${year} • ${hour}:${min} WIB`;
       }
-      
+
       const d = new Date(dateStr);
+
       if (!isNaN(d.getTime())) {
         const day = d.getDate();
         const month = months[d.getMonth()];
         const year = d.getFullYear();
         const hour = String(d.getHours()).padStart(2, '0');
         const min = String(d.getMinutes()).padStart(2, '0');
+
         return `${day} ${month} ${year} • ${hour}:${min} WIB`;
       }
+
       return str;
     }
 
-    async function loadSiteSettings() {
-      try {
-        const res = await fetch(`${API_URL}?action=getSettings`);
-        const json = await res.json();
-        if (json.success && json.data) {
-          const s = json.data;
-          if (s.site_name) document.getElementById("siteHeaderTitle").innerText = s.site_name;
-          if (s.site_logo) {
-            const logoImg = document.getElementById("siteHeaderLogo");
-            logoImg.src = s.site_logo;
-            logoImg.parentElement.classList.remove("hidden");
-            const defIcon = document.getElementById("siteDefaultIcon");
-            if (defIcon) defIcon.classList.add("hidden");
-          }
-          if (s.site_favicon) document.getElementById("dynamicFavicon").href = s.site_favicon;
-        }
-      } catch (e) { console.error(e); }
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     }
 
+    // ==========================================
+    // LOAD SITE SETTINGS
+    // ==========================================
+    async function loadSiteSettings() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('settings')
+          .select('key, value')
+          .in('key', [
+            'site_name',
+            'site_logo',
+            'site_favicon'
+          ]);
+
+        if (error) {
+          throw error;
+        }
+
+        if (!data || data.length === 0) {
+          console.warn("Settings Supabase tidak ditemukan.");
+          return;
+        }
+
+        const settings = Object.fromEntries(
+          data.map(item => [item.key, item.value])
+        );
+
+        // SITE NAME
+        if (settings.site_name) {
+          const title = document.getElementById("siteHeaderTitle");
+
+          if (title) {
+            title.innerText = settings.site_name;
+          }
+        }
+
+        // SITE LOGO
+        if (settings.site_logo) {
+          const logoImg = document.getElementById("siteHeaderLogo");
+
+          if (logoImg) {
+            logoImg.src = settings.site_logo;
+            logoImg.classList.remove("hidden");
+
+            if (logoImg.parentElement) {
+              logoImg.parentElement.classList.remove("hidden");
+            }
+          }
+
+          const defaultIcon =
+            document.getElementById("siteDefaultIcon");
+
+          if (defaultIcon) {
+            defaultIcon.classList.add("hidden");
+          }
+        }
+
+        // FAVICON
+        if (settings.site_favicon) {
+          const favicon =
+            document.getElementById("dynamicFavicon");
+
+          if (favicon) {
+            favicon.href = settings.site_favicon;
+          }
+        }
+
+      } catch (error) {
+        console.error(
+          "Gagal memuat settings dari Supabase:",
+          error
+        );
+      }
+    }
+
+    // ==========================================
+    // MOBILE MENU
+    // ==========================================
     function setupMobileMenu() {
-      const headerContainer = document.querySelector('header > div');
+      const headerContainer =
+        document.querySelector('header > div');
+
       if (headerContainer) {
-        const mobileMenuBtn = document.createElement('button');
-        mobileMenuBtn.className = 'md:hidden text-slate-900 hover:text-black focus:outline-none p-2 ml-2 order-last';
-        mobileMenuBtn.innerHTML = '<i class="fa-solid fa-bars text-xl"></i>';
+        const mobileMenuBtn =
+          document.createElement('button');
+
+        mobileMenuBtn.className =
+          'md:hidden text-slate-900 hover:text-black focus:outline-none p-2 ml-2 order-last';
+
+        mobileMenuBtn.innerHTML =
+          '<i class="fa-solid fa-bars text-xl"></i>';
+
         headerContainer.appendChild(mobileMenuBtn);
 
-        const offCanvas = document.createElement('div');
-        offCanvas.className = 'fixed inset-0 bg-black bg-opacity-40 z-50 transform translate-x-full transition-transform duration-300 ease-in-out md:hidden';
+        const offCanvas =
+          document.createElement('div');
+
+        offCanvas.className =
+          'fixed inset-0 bg-black bg-opacity-40 z-50 transform translate-x-full transition-transform duration-300 ease-in-out md:hidden';
+
         offCanvas.id = 'mobile-offcanvas';
+
         offCanvas.innerHTML = `
           <div class="bg-white w-64 h-full p-6 flex flex-col justify-between shadow-2xl ml-auto">
             <div>
               <div class="flex items-center justify-between pb-6 border-b border-gray-100">
-                <span class="text-lg font-black tracking-tight text-slate-900"><i class="fa-solid fa-feather-pointed"></i> Alvaro News</span>
-                <button id="close-offcanvas" class="text-gray-500 hover:text-black"><i class="fa-solid fa-xmark text-xl"></i></button>
+                <span class="text-lg font-black tracking-tight text-slate-900">
+                  <i class="fa-solid fa-feather-pointed"></i>
+                  Alvaro News
+                </span>
+
+                <button
+                  id="close-offcanvas"
+                  class="text-gray-500 hover:text-black">
+                  <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
               </div>
+
               <nav class="flex flex-col gap-4 mt-8 text-sm font-semibold uppercase tracking-wider text-gray-500">
                 <a href="index.html" class="hover:text-slate-950">Beranda</a>
                 <a href="artikel.html" class="hover:text-slate-950">Artikel</a>
@@ -135,90 +241,317 @@
                 <a href="kontak.html" class="hover:text-slate-950">Kontak</a>
               </nav>
             </div>
+
             <div class="text-[11px] text-gray-400 border-t border-gray-100 pt-4">
               © 2026 Alvaro News.
             </div>
           </div>
         `;
+
         document.body.appendChild(offCanvas);
 
-        mobileMenuBtn.addEventListener('click', () => { offCanvas.classList.remove('translate-x-full'); });
-        offCanvas.querySelector('#close-offcanvas').addEventListener('click', () => { offCanvas.classList.add('translate-x-full'); });
-        offCanvas.addEventListener('click', (e) => { if (e.target === offCanvas) offCanvas.classList.add('translate-x-full'); });
+        mobileMenuBtn.addEventListener('click', () => {
+          offCanvas.classList.remove('translate-x-full');
+        });
+
+        offCanvas
+          .querySelector('#close-offcanvas')
+          .addEventListener('click', () => {
+            offCanvas.classList.add('translate-x-full');
+          });
+
+        offCanvas.addEventListener('click', (e) => {
+          if (e.target === offCanvas) {
+            offCanvas.classList.add('translate-x-full');
+          }
+        });
       }
     }
 
+    // ==========================================
+    // LOAD CATEGORIES + ARTICLES
+    // ==========================================
     async function loadCategories(activeCat) {
-      const filterDiv = document.getElementById("filterSection");
-      const grid = document.getElementById("articlesGrid");
+      const filterDiv =
+        document.getElementById("filterSection");
+
+      const grid =
+        document.getElementById("articlesGrid");
 
       try {
-        const [resArt, resCat] = await Promise.all([
-          fetch(`${API_URL}?action=getArticles`),
-          fetch(`${API_URL}?action=getCategories`)
+        const [
+          articlesResult,
+          categoriesResult
+        ] = await Promise.all([
+
+          supabaseClient
+            .from('articles')
+            .select(`
+              id,
+              title,
+              slug,
+              summary,
+              content,
+              category_id,
+              thumbnail,
+              author,
+              date,
+              status,
+              views,
+              is_editor_choice,
+              categories (
+                id,
+                name,
+                slug
+              )
+            `)
+            .eq('status', 'Published')
+            .order('date', {
+              ascending: false
+            }),
+
+          supabaseClient
+            .from('categories')
+            .select('id, name, slug')
+            .order('name', {
+              ascending: true
+            })
         ]);
-        const dataArt = await resArt.json();
-        const dataCat = await resCat.json();
 
-        if (dataArt.success && dataCat.success) {
-          filterDiv.innerHTML = `<button onclick="renderCategoryFiltered('all')" class="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider rounded-full transition ${!activeCat ? 'bg-slate-900 text-white shadow-sm' : 'bg-white border border-gray-200 text-slate-800 hover:bg-gray-50'}">Semua</button>` +
-            dataCat.data.map(cat => `
-              <button onclick="renderCategoryFiltered('${cat.Name}')" class="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider rounded-full transition ${activeCat === cat.Name ? 'bg-slate-900 text-white shadow-sm' : 'bg-white border border-gray-200 text-slate-800 hover:bg-gray-50'}">${cat.Name}</button>
-            `).join('');
-
-          window.allArticles = dataArt.data;
-          renderCategoryFiltered(activeCat || 'all');
+        if (articlesResult.error) {
+          throw articlesResult.error;
         }
+
+        if (categoriesResult.error) {
+          throw categoriesResult.error;
+        }
+
+        // ==========================================
+        // KONVERSI ARTIKEL
+        // ==========================================
+        const articles =
+          (articlesResult.data || []).map(item => ({
+            ID: item.id,
+            Title: item.title,
+            Slug: item.slug,
+            Summary: item.summary,
+            Content: item.content,
+            Category: item.categories?.name || '-',
+            CategoryId: item.category_id,
+            Thumbnail: item.thumbnail,
+            Author: item.author,
+            Date: item.date,
+            Status: item.status,
+            Views: item.views || 0,
+            IsEditorChoice:
+              item.is_editor_choice === true
+          }));
+
+        // ==========================================
+        // KONVERSI KATEGORI
+        // ==========================================
+        const categories =
+          (categoriesResult.data || []).map(item => ({
+            ID: item.id,
+            Name: item.name,
+            Slug: item.slug
+          }));
+
+        // ==========================================
+        // RENDER BUTTON KATEGORI
+        // ==========================================
+        filterDiv.innerHTML = `
+          <button
+            class="category-filter-btn px-5 py-2.5 text-xs font-semibold uppercase tracking-wider rounded-full transition"
+            data-category="all">
+            Semua
+          </button>
+
+          ${categories.map(cat => `
+            <button
+              class="category-filter-btn px-5 py-2.5 text-xs font-semibold uppercase tracking-wider rounded-full transition"
+              data-category="${escapeHtml(cat.Name)}">
+              ${escapeHtml(cat.Name)}
+            </button>
+          `).join('')}
+        `;
+
+        // ==========================================
+        // EVENT BUTTON
+        // ==========================================
+        document
+          .querySelectorAll(".category-filter-btn")
+          .forEach(btn => {
+
+            btn.addEventListener("click", function() {
+              renderCategoryFiltered(
+                this.dataset.category
+              );
+            });
+
+          });
+
+        // ==========================================
+        // SIMPAN ARTIKEL
+        // ==========================================
+        window.allArticles = articles;
+
+        // ==========================================
+        // RENDER KATEGORI AKTIF
+        // ==========================================
+        renderCategoryFiltered(
+          activeCat || 'all'
+        );
+
       } catch (err) {
-        grid.innerHTML = `<p class="text-red-500 text-sm">Terjadi kesalahan pemuatan data.</p>`;
+
+        console.error(
+          "Gagal memuat kategori/artikel dari Supabase:",
+          err
+        );
+
+        grid.innerHTML = `
+          <p class="text-red-500 text-sm">
+            Terjadi kesalahan pemuatan data.
+          </p>
+        `;
       }
     }
 
+    // ==========================================
+    // FILTER ARTIKEL BERDASARKAN KATEGORI
+    // ==========================================
     function renderCategoryFiltered(catName) {
-      const grid = document.getElementById("articlesGrid");
-      const catTitle = document.getElementById("catTitle");
-      
-      let filtered = window.allArticles;
+
+      const grid =
+        document.getElementById("articlesGrid");
+
+      const catTitle =
+        document.getElementById("catTitle");
+
+      let filtered =
+        window.allArticles || [];
+
       if (catName !== 'all') {
-        filtered = window.allArticles.filter(art => art.Category === catName);
-        catTitle.innerText = `Kategori: ${catName}`;
+
+        filtered = filtered.filter(
+          art => art.Category === catName
+        );
+
+        catTitle.innerText =
+          `Kategori: ${catName}`;
+
       } else {
-        catTitle.innerText = `Semua Kategori`;
+
+        catTitle.innerText =
+          `Semua Kategori`;
       }
 
-      const buttons = document.querySelectorAll("#filterSection button");
+      // ==========================================
+      // UPDATE WARNA BUTTON
+      // ==========================================
+      const buttons =
+        document.querySelectorAll(
+          "#filterSection .category-filter-btn"
+        );
+
       buttons.forEach(btn => {
-        if (btn.innerText === catName || (catName === 'all' && btn.innerText === 'Semua')) {
-          btn.className = "px-5 py-2.5 text-xs font-semibold uppercase tracking-wider rounded-full bg-slate-900 text-white shadow-sm transition";
+
+        const buttonCategory =
+          btn.dataset.category;
+
+        if (buttonCategory === catName) {
+
+          btn.className =
+            "category-filter-btn px-5 py-2.5 text-xs font-semibold uppercase tracking-wider rounded-full bg-slate-900 text-white shadow-sm transition";
+
         } else {
-          btn.className = "px-5 py-2.5 text-xs font-semibold uppercase tracking-wider rounded-full bg-white border border-gray-200 text-slate-800 hover:bg-gray-50 transition";
+
+          btn.className =
+            "category-filter-btn px-5 py-2.5 text-xs font-semibold uppercase tracking-wider rounded-full bg-white border border-gray-200 text-slate-800 hover:bg-gray-50 transition";
+
         }
+
       });
 
+      // ==========================================
+      // JIKA TIDAK ADA ARTIKEL
+      // ==========================================
       if (filtered.length === 0) {
-        grid.innerHTML = `<p class="col-span-3 text-center text-gray-400 font-light py-16">Belum ada artikel di kategori ini.</p>`;
+
+        grid.innerHTML = `
+          <p class="col-span-3 text-center text-gray-400 font-light py-16">
+            Belum ada artikel di kategori ini.
+          </p>
+        `;
+
         return;
       }
 
+      // ==========================================
+      // RENDER ARTIKEL
+      // ==========================================
       grid.innerHTML = filtered.map(art => `
-        <article class="bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col hover:shadow-md transition duration-300 group">
+
+        <article
+          class="bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col hover:shadow-md transition duration-300 group">
+
           <div class="overflow-hidden">
-            <img src="${art.Thumbnail}" class="h-48 w-full object-cover group-hover:scale-105 transition duration-500">
+
+            <img
+              src="${escapeHtml(art.Thumbnail || '')}"
+              alt="${escapeHtml(art.Title)}"
+              class="h-48 w-full object-cover group-hover:scale-105 transition duration-500">
+
           </div>
+
           <div class="p-6 flex flex-col justify-between flex-grow">
+
             <div>
-              <span class="text-[10px] font-extrabold text-slate-500 tracking-wider uppercase">${art.Category}</span>
-              <h3 class="text-base font-bold text-slate-900 mt-2 mb-2 line-clamp-2 hover:text-slate-700 transition">
-                <a href="artikel.html?slug=${art.Slug}">${art.Title}</a>
+
+              <span
+                class="text-[10px] font-extrabold text-slate-500 tracking-wider uppercase">
+                ${escapeHtml(art.Category)}
+              </span>
+
+              <h3
+                class="text-base font-bold text-slate-900 mt-2 mb-2 line-clamp-2 hover:text-slate-700 transition">
+
+                <a
+                  href="artikel.html?slug=${encodeURIComponent(art.Slug)}">
+
+                  ${escapeHtml(art.Title)}
+
+                </a>
+
               </h3>
-              <p class="text-xs text-gray-400 line-clamp-2 mb-4 font-light">${art.Summary}</p>
+
+              <p
+                class="text-xs text-gray-400 line-clamp-2 mb-4 font-light">
+
+                ${escapeHtml(art.Summary || '')}
+
+              </p>
+
             </div>
-            <div class="text-[11px] text-gray-400 border-t border-gray-50 pt-4 flex justify-between mt-2">
-              <span class="font-medium text-slate-700">${art.Author}</span>
-              <span>${formatHumanWibDate(art.Date)}</span>
+
+            <div
+              class="text-[11px] text-gray-400 border-t border-gray-50 pt-4 flex justify-between mt-2">
+
+              <span class="font-medium text-slate-700">
+                ${escapeHtml(art.Author || '')}
+              </span>
+
+              <span>
+                ${formatHumanWibDate(art.Date)}
+              </span>
+
             </div>
+
           </div>
+
         </article>
+
       `).join('');
     }
   </script>
