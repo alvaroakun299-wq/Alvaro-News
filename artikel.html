@@ -158,27 +158,102 @@
 
     async function loadSiteSettings() {
       try {
-        const res = await fetch(`${API_URL}?action=getSettings`);
-        const json = await res.json();
-        if (json.success && json.data) {
-          const s = json.data;
-          if (s.site_name) {
-            document.getElementById("siteHeaderTitle").innerText = s.site_name;
-            const footer = document.getElementById("footerBrand");
-            if (footer) footer.innerText = `© 2026 ${s.site_name}. Hak Cipta Dilindungi.`;
+
+        // ==========================================
+        // AMBIL SETTINGS DARI SUPABASE
+        // ==========================================
+        const { data, error } = await supabaseClient
+          .from('settings')
+          .select('key, value')
+          .in('key', [
+            'site_name',
+            'site_logo',
+            'site_favicon'
+          ]);
+
+        if (error) {
+          throw error;
+        }
+
+        if (!data || data.length === 0) {
+          console.warn("Settings Supabase tidak ditemukan.");
+          return;
+        }
+
+        // ==========================================
+        // UBAH ARRAY MENJADI OBJECT
+        // ==========================================
+        const settings = Object.fromEntries(
+          data.map(item => [item.key, item.value])
+        );
+
+        // ==========================================
+        // SITE NAME
+        // ==========================================
+        if (settings.site_name) {
+
+          const siteName = settings.site_name;
+
+          const headerTitle =
+            document.getElementById("siteHeaderTitle");
+
+          if (headerTitle) {
+            headerTitle.innerText = siteName;
           }
-          if (s.site_logo) {
-            const logoImg = document.getElementById("siteHeaderLogo");
-            logoImg.src = s.site_logo;
-            logoImg.parentElement.classList.remove("hidden");
-            const defIcon = document.getElementById("siteDefaultIcon");
-            if (defIcon) defIcon.classList.add("hidden");
-          }
-          if (s.site_favicon) {
-            document.getElementById("dynamicFavicon").href = s.site_favicon;
+
+          const footerTitle =
+            document.getElementById("footerBrand");
+
+          if (footerTitle) {
+            footerTitle.innerHTML = `
+              <i class="fa-solid fa-feather-pointed text-white"></i>
+              ${escapeHtml(siteName)}
+            `;
           }
         }
-      } catch (e) { console.error("Error loading header settings:", e); }
+
+        // ==========================================
+        // SITE LOGO
+        // ==========================================
+        if (settings.site_logo) {
+
+          const logoImg =
+            document.getElementById("siteHeaderLogo");
+
+          if (logoImg) {
+            logoImg.src = settings.site_logo;
+            logoImg.classList.remove("hidden");
+          }
+
+          const defaultIcon =
+            document.getElementById("siteDefaultIcon");
+
+          if (defaultIcon) {
+            defaultIcon.classList.add("hidden");
+          }
+        }
+
+        // ==========================================
+        // FAVICON
+        // ==========================================
+        if (settings.site_favicon) {
+
+          const favicon =
+            document.getElementById("dynamicFavicon");
+
+          if (favicon) {
+            favicon.href = settings.site_favicon;
+          }
+        }
+
+      } catch (error) {
+
+        console.error(
+          "Gagal memuat settings dari Supabase:",
+          error
+        );
+
+      }
     }
 
     function setupMobileMenu() {
