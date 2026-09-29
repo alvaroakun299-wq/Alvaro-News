@@ -174,8 +174,10 @@
     </div>
   </footer>
 
-  <script src="config.js"></script>
-  <script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+
+<script>
     document.addEventListener("DOMContentLoaded", function() {
       loadSiteSettings();
       fetchData();
@@ -319,21 +321,63 @@
       }
     }
 
-    async function fetchData() {
+        async function fetchData() {
       try {
-        const [resArt, resCat] = await Promise.all([
-          fetch(`${API_URL}?action=getArticles`),
-          fetch(`${API_URL}?action=getCategories`)
-        ]);
-        const dataArt = await resArt.json();
-        const dataCat = await resCat.json();
+        const [
+          { data: articles, error: articlesError },
+          { data: categories, error: categoriesError }
+        ] = await Promise.all([
+          supabaseClient
+            .from('articles')
+            .select('*')
+            .eq('status', 'Published'),
 
-        if (dataArt.success && dataCat.success) {
-          renderArticles(dataArt.data);
-          renderCategories(dataCat.data);
-        }
+          supabaseClient
+            .from('categories')
+            .select('*')
+            .order('name', { ascending: true })
+        ]);
+
+        if (articlesError) throw articlesError;
+        if (categoriesError) throw categoriesError;
+
+        // Membuat mapping category ID → nama kategori
+        const categoryMap = Object.fromEntries(
+          categories.map(cat => [cat.id, cat.name])
+        );
+
+        // Menyesuaikan data Supabase dengan struktur
+        // yang saat ini digunakan oleh renderArticles()
+        const mappedArticles = articles.map(art => ({
+          ID: art.id,
+          Title: art.title,
+          Slug: art.slug,
+          Summary: art.summary,
+          Content: art.content,
+          Category: categoryMap[art.category_id] || '-',
+          CategoryId: art.category_id,
+          Thumbnail: art.thumbnail,
+          Author: art.author,
+          Date: art.date,
+          Status: art.status,
+          Views: art.views || 0,
+          IsEditorChoice: art.is_editor_choice
+        }));
+
+        // Menampilkan artikel
+        renderArticles(mappedArticles);
+
+        // Menyesuaikan struktur kategori dengan renderCategories()
+        const mappedCategories = categories.map(cat => ({
+          ID: cat.id,
+          Name: cat.name,
+          Slug: cat.slug
+        }));
+
+        renderCategories(mappedCategories);
+
       } catch (err) {
-        console.error("Gagal memuat data: ", err);
+        console.error("Gagal memuat data Supabase:", err);
       }
     }
 
