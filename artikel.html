@@ -628,24 +628,60 @@
     // Sistem Komentar
     async function loadComments(internalArticleId) {
       const container = document.getElementById("commentsContainer");
+
+      if (!container) return;
+
       try {
-        const res = await fetch(`${API_URL}?action=getComments&articleId=${encodeURIComponent(internalArticleId)}`);
-        const json = await res.json();
-        if (json.success && json.data.length > 0) {
-          container.innerHTML = json.data.map(c => `
+        const { data, error } = await supabaseClient
+          .from('comments')
+          .select(`
+            comment_id,
+            name,
+            comment,
+            created_at
+          `)
+          .eq('article_id', internalArticleId)
+          .eq('status', 'Approved')
+          .order('created_at', { ascending: true });
+
+        if (error) {
+          throw error;
+        }
+
+        if (data && data.length > 0) {
+          container.innerHTML = data.map(c => `
             <div class="pt-4 first:pt-0">
               <div class="flex items-center justify-between mb-1">
-                <span class="font-bold text-xs uppercase tracking-wider text-slate-900">${escapeHtml(c.Name)}</span>
-                <span class="text-[10px] text-gray-400 font-mono">${formatHumanWibDate(c.Date)}</span>
+                <span class="font-bold text-xs uppercase tracking-wider text-slate-900">
+                  ${escapeHtml(c.name)}
+                </span>
+
+                <span class="text-[10px] text-gray-400 font-mono">
+                  ${formatHumanWibDate(c.created_at)}
+                </span>
               </div>
-              <p class="text-xs text-slate-600 font-light leading-relaxed">${escapeHtml(c.Comment).replace(/\n/g, '<br>')}</p>
+
+              <p class="text-xs text-slate-600 font-light leading-relaxed">
+                ${escapeHtml(c.comment).replace(/\n/g, '<br>')}
+              </p>
             </div>
           `).join('');
         } else {
-          container.innerHTML = `<p class="text-xs text-gray-400 font-light pt-2">Belum ada komentar pada artikel ini. Jadilah yang pertama berkomentar!</p>`;
+          container.innerHTML = `
+            <p class="text-xs text-gray-400 font-light pt-2">
+              Belum ada komentar pada artikel ini. Jadilah yang pertama berkomentar!
+            </p>
+          `;
         }
+
       } catch (err) {
-        container.innerHTML = `<p class="text-xs text-rose-500 pt-2">Gagal memuat komentar.</p>`;
+        console.error("Gagal memuat komentar dari Supabase:", err);
+
+        container.innerHTML = `
+          <p class="text-xs text-rose-500 pt-2">
+            Gagal memuat komentar.
+          </p>
+        `;
       }
     }
 
