@@ -221,8 +221,17 @@
             document.getElementById("siteHeaderLogo");
 
           if (logoImg) {
+
             logoImg.src = settings.site_logo;
+
+            // Tampilkan gambar
             logoImg.classList.remove("hidden");
+
+            // Jika parent memiliki class hidden,
+            // tampilkan juga parent-nya
+            if (logoImg.parentElement) {
+              logoImg.parentElement.classList.remove("hidden");
+            }
           }
 
           const defaultIcon =
