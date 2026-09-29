@@ -109,6 +109,7 @@
     </div>
   </footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", function() {
@@ -118,63 +119,90 @@
 
     async function loadSiteSettings() {
       try {
-        const res = await fetch(`${API_URL}?action=getSettings`);
-        const json = await res.json();
-        if (json.success && json.data) {
-          const s = json.data;
-          if (s.site_name) {
-            document.getElementById("siteHeaderTitle").innerText = s.site_name;
-            const ft = document.getElementById("footerBrand");
-            if (ft) ft.innerText = `© 2026 ${s.site_name}. Hak Cipta Dilindungi.`;
-          }
-          if (s.site_logo) {
-            const logoImg = document.getElementById("siteHeaderLogo");
-            logoImg.src = s.site_logo;
-            logoImg.parentElement.classList.remove("hidden");
-            const defIcon = document.getElementById("siteDefaultIcon");
-            if (defIcon) defIcon.classList.add("hidden");
-          }
-          if (s.site_favicon) document.getElementById("dynamicFavicon").href = s.site_favicon;
+        const { data, error } = await supabaseClient
+          .from('settings')
+          .select('key, value')
+          .in('key', [
+            'site_name',
+            'site_logo',
+            'site_favicon'
+          ]);
+
+        if (error) {
+          throw error;
         }
-      } catch (e) { console.error(e); }
-    }
 
-    function setupMobileMenu() {
-      const headerContainer = document.querySelector('header > div');
-      if (headerContainer) {
-        const mobileMenuBtn = document.createElement('button');
-        mobileMenuBtn.className = 'md:hidden text-slate-900 hover:text-black focus:outline-none p-2 ml-2 order-last';
-        mobileMenuBtn.innerHTML = '<i class="fa-solid fa-bars text-xl"></i>';
-        headerContainer.appendChild(mobileMenuBtn);
+        if (!data || data.length === 0) {
+          console.warn("Settings Supabase tidak ditemukan.");
+          return;
+        }
 
-        const offCanvas = document.createElement('div');
-        offCanvas.className = 'fixed inset-0 bg-black bg-opacity-40 z-50 transform translate-x-full transition-transform duration-300 ease-in-out md:hidden';
-        offCanvas.id = 'mobile-offcanvas';
-        offCanvas.innerHTML = `
-          <div class="bg-white w-64 h-full p-6 flex flex-col justify-between shadow-2xl ml-auto">
-            <div>
-              <div class="flex items-center justify-between pb-6 border-b border-gray-100">
-                <span class="text-lg font-black tracking-tight text-slate-900"><i class="fa-solid fa-feather-pointed"></i> Alvaro News</span>
-                <button id="close-offcanvas" class="text-gray-500 hover:text-black"><i class="fa-solid fa-xmark text-xl"></i></button>
-              </div>
-              <nav class="flex flex-col gap-4 mt-8 text-sm font-semibold uppercase tracking-wider text-gray-500">
-                <a href="index.html" class="hover:text-slate-950">Beranda</a>
-                <a href="artikel.html" class="hover:text-slate-950">Artikel</a>
-                <a href="kategori.html" class="hover:text-slate-950">Kategori</a>
-                <a href="tentang.html" class="text-slate-900">Tentang</a>
-                <a href="kontak.html" class="hover:text-slate-950">Kontak</a>
-              </nav>
-            </div>
-            <div class="text-[11px] text-gray-400 border-t border-gray-100 pt-4">
-              © 2026 Alvaro News.
-            </div>
-          </div>
-        `;
-        document.body.appendChild(offCanvas);
+        const settings = Object.fromEntries(
+          data.map(item => [item.key, item.value])
+        );
 
-        mobileMenuBtn.addEventListener('click', () => { offCanvas.classList.remove('translate-x-full'); });
-        offCanvas.querySelector('#close-offcanvas').addEventListener('click', () => { offCanvas.classList.add('translate-x-full'); });
-        offCanvas.addEventListener('click', (e) => { if (e.target === offCanvas) offCanvas.classList.add('translate-x-full'); });
+        // ==========================================
+        // SITE NAME
+        // ==========================================
+        if (settings.site_name) {
+          const siteTitle =
+            document.getElementById("siteHeaderTitle");
+
+          if (siteTitle) {
+            siteTitle.innerText = settings.site_name;
+          }
+
+          const footer =
+            document.getElementById("footerBrand");
+
+          if (footer) {
+            footer.innerText =
+              `© 2026 ${settings.site_name}. Hak Cipta Dilindungi.`;
+          }
+        }
+
+        // ==========================================
+        // SITE LOGO
+        // ==========================================
+        if (settings.site_logo) {
+          const logoImg =
+            document.getElementById("siteHeaderLogo");
+
+          if (logoImg) {
+            logoImg.src = settings.site_logo;
+
+            logoImg.classList.remove("hidden");
+
+            if (logoImg.parentElement) {
+              logoImg.parentElement.classList.remove("hidden");
+            }
+          }
+
+          const defaultIcon =
+            document.getElementById("siteDefaultIcon");
+
+          if (defaultIcon) {
+            defaultIcon.classList.add("hidden");
+          }
+        }
+
+        // ==========================================
+        // FAVICON
+        // ==========================================
+        if (settings.site_favicon) {
+          const favicon =
+            document.getElementById("dynamicFavicon");
+
+          if (favicon) {
+            favicon.href = settings.site_favicon;
+          }
+        }
+
+      } catch (error) {
+        console.error(
+          "Gagal memuat settings dari Supabase:",
+          error
+        );
       }
     }
   </script>
