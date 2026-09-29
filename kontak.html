@@ -56,7 +56,9 @@
     </div>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
+
   <script>
     document.addEventListener("DOMContentLoaded", function() {
       loadSiteSettings();
@@ -64,59 +66,211 @@
 
     async function loadSiteSettings() {
       try {
-        const res = await fetch(`${API_URL}?action=getSettings`);
-        const json = await res.json();
-        if (json.success && json.data) {
-          const s = json.data;
-          if (s.site_name) document.getElementById("siteHeaderTitle").innerText = s.site_name;
-          if (s.site_logo) {
-            const logoImg = document.getElementById("siteHeaderLogo");
-            logoImg.src = s.site_logo;
-            logoImg.parentElement.classList.remove("hidden");
-            const defIcon = document.getElementById("siteDefaultIcon");
-            if (defIcon) defIcon.classList.add("hidden");
-          }
-          if (s.site_favicon) document.getElementById("dynamicFavicon").href = s.site_favicon;
+        const { data, error } = await supabaseClient
+          .from('settings')
+          .select('key, value')
+          .in('key', [
+            'site_name',
+            'site_logo',
+            'site_favicon'
+          ]);
+
+        if (error) {
+          throw error;
         }
-      } catch (e) { console.error(e); }
+
+        if (!data || data.length === 0) {
+          console.warn("Settings Supabase tidak ditemukan.");
+          return;
+        }
+
+        const settings = Object.fromEntries(
+          data.map(item => [item.key, item.value])
+        );
+
+        // ==========================================
+        // SITE NAME
+        // ==========================================
+        if (settings.site_name) {
+          const siteTitle =
+            document.getElementById("siteHeaderTitle");
+
+          if (siteTitle) {
+            siteTitle.innerText = settings.site_name;
+          }
+        }
+
+        // ==========================================
+        // SITE LOGO
+        // ==========================================
+        if (settings.site_logo) {
+          const logoImg =
+            document.getElementById("siteHeaderLogo");
+
+          if (logoImg) {
+            logoImg.src = settings.site_logo;
+            logoImg.classList.remove("hidden");
+
+            if (logoImg.parentElement) {
+              logoImg.parentElement.classList.remove("hidden");
+            }
+          }
+
+          const defaultIcon =
+            document.getElementById("siteDefaultIcon");
+
+          if (defaultIcon) {
+            defaultIcon.classList.add("hidden");
+          }
+        }
+
+        // ==========================================
+        // FAVICON
+        // ==========================================
+        if (settings.site_favicon) {
+          const favicon =
+            document.getElementById("dynamicFavicon");
+
+          if (favicon) {
+            favicon.href = settings.site_favicon;
+          }
+        }
+
+      } catch (error) {
+        console.error(
+          "Gagal memuat settings dari Supabase:",
+          error
+        );
+      }
     }
 
     async function submitForm(e) {
       e.preventDefault();
-      const btn = document.getElementById("submitBtn");
-      const feedback = document.getElementById("feedback");
-      
+
+      const btn =
+        document.getElementById("submitBtn");
+
+      const feedback =
+        document.getElementById("feedback");
+
+      const name =
+        document.getElementById("name").value.trim();
+
+      const email =
+        document.getElementById("email").value.trim();
+
+      const message =
+        document.getElementById("message").value.trim();
+
+      // ==========================================
+      // VALIDASI
+      // ==========================================
+      if (!name || !email || !message) {
+        feedback.className =
+          "text-center text-sm text-rose-600 font-semibold mt-4";
+
+        feedback.innerText =
+          "Nama, email, dan pesan wajib diisi.";
+
+        feedback.classList.remove("hidden");
+        return;
+      }
+
+      if (name.length > 100) {
+        feedback.className =
+          "text-center text-sm text-rose-600 font-semibold mt-4";
+
+        feedback.innerText =
+          "Nama maksimal 100 karakter.";
+
+        feedback.classList.remove("hidden");
+        return;
+      }
+
+      if (email.length > 150) {
+        feedback.className =
+          "text-center text-sm text-rose-600 font-semibold mt-4";
+
+        feedback.innerText =
+          "Email maksimal 150 karakter.";
+
+        feedback.classList.remove("hidden");
+        return;
+      }
+
+      if (message.length > 5000) {
+        feedback.className =
+          "text-center text-sm text-rose-600 font-semibold mt-4";
+
+        feedback.innerText =
+          "Pesan maksimal 5000 karakter.";
+
+        feedback.classList.remove("hidden");
+        return;
+      }
+
+      // ==========================================
+      // TAMPILAN LOADING
+      // ==========================================
       btn.disabled = true;
       btn.innerText = "Mengirim...";
-      
-      const payload = {
-        action: 'addMessage',
-        name: document.getElementById("name").value,
-        email: document.getElementById("email").value,
-        message: document.getElementById("message").value
-      };
+
+      feedback.classList.add("hidden");
 
       try {
-        const res = await fetch(API_URL, {
-          method: 'POST',
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        
-        if (data.success) {
-          feedback.className = "text-center text-sm text-emerald-600 font-semibold mt-4";
-          feedback.innerText = "Pesan berhasil terkirim!";
-          document.getElementById("contactForm").reset();
-        } else {
-          feedback.className = "text-center text-sm text-rose-600 font-semibold mt-4";
-          feedback.innerText = "Gagal mengirim pesan.";
+
+        // ==========================================
+        // INSERT KE SUPABASE
+        // ==========================================
+        const { error } = await supabaseClient
+          .from('messages')
+          .insert([{
+            id: `MSG-${Date.now()}-${Math.random()
+              .toString(36)
+              .substring(2, 8)}`,
+            name: name,
+            email: email,
+            message: message
+          }]);
+
+        if (error) {
+          throw error;
         }
-      } catch (err) {
-        feedback.className = "text-center text-sm text-rose-600 font-semibold mt-4";
-        feedback.innerText = "Error koneksi.";
+
+        // ==========================================
+        // BERHASIL
+        // ==========================================
+        feedback.className =
+          "text-center text-sm text-emerald-600 font-semibold mt-4";
+
+        feedback.innerText =
+          "Pesan berhasil terkirim!";
+
+        document
+          .getElementById("contactForm")
+          .reset();
+
+      } catch (error) {
+
+        console.error(
+          "Gagal mengirim pesan ke Supabase:",
+          error
+        );
+
+        // ==========================================
+        // GAGAL
+        // ==========================================
+        feedback.className =
+          "text-center text-sm text-rose-600 font-semibold mt-4";
+
+        feedback.innerText =
+          "Gagal mengirim pesan. Silakan coba kembali.";
+
       } finally {
+
         btn.disabled = false;
         btn.innerText = "Kirim Pesan";
+
         feedback.classList.remove("hidden");
       }
     }
