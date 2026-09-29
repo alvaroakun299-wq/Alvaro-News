@@ -212,74 +212,152 @@
       return str;
     }
 
-    async function loadSiteSettings() {
+        async function loadSiteSettings() {
       try {
-        const res = await fetch(`${API_URL}?action=getSettings`);
-        const json = await res.json();
-        if (json.success && json.data) {
-          const s = json.data;
-          if (s.site_name) {
-            document.getElementById("siteHeaderTitle").innerText = s.site_name;
-            const ft = document.getElementById("footerBrandTitle");
-            if (ft) ft.innerHTML = `<i class="fa-solid fa-feather-pointed text-white"></i> ${s.site_name}`;
-            const fc = document.getElementById("footerCopyright");
-            if (fc) fc.innerText = `© 2026 ${s.site_name}. Hak Cipta Dilindungi.`;
+        const { data, error } = await supabaseClient
+          .from('settings')
+          .select('key, value')
+          .in('key', ['site_name', 'site_logo', 'site_favicon']);
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+          console.warn("Settings Supabase tidak ditemukan.");
+          return;
+        }
+
+        // Ubah array Supabase menjadi object berdasarkan key
+        const settings = Object.fromEntries(
+          data.map(item => [item.key, item.value])
+        );
+
+        // ==============================
+        // SITE NAME
+        // ==============================
+        if (settings.site_name) {
+          const siteName = settings.site_name;
+
+          const headerTitle = document.getElementById("siteHeaderTitle");
+          if (headerTitle) {
+            headerTitle.innerText = siteName;
           }
-          if (s.site_logo) {
-            const logoImg = document.getElementById("siteHeaderLogo");
-            logoImg.src = s.site_logo;
-            logoImg.parentElement.classList.remove("hidden");
-            const defIcon = document.getElementById("siteDefaultIcon");
-            if (defIcon) defIcon.classList.add("hidden");
+
+          const footerTitle = document.getElementById("footerBrandTitle");
+          if (footerTitle) {
+            footerTitle.innerHTML =
+              `<i class="fa-solid fa-feather-pointed text-white"></i> ${siteName}`;
           }
-          if (s.site_favicon) {
-            document.getElementById("dynamicFavicon").href = s.site_favicon;
+
+          const footerCopyright = document.getElementById("footerCopyright");
+          if (footerCopyright) {
+            footerCopyright.innerText =
+              `© 2026 ${siteName}. Hak Cipta Dilindungi.`;
           }
         }
-      } catch (e) { console.error("Error loading header settings:", e); }
+
+        // ==============================
+        // SITE LOGO
+        // ==============================
+        if (settings.site_logo) {
+          const logoImg = document.getElementById("siteHeaderLogo");
+
+          if (logoImg) {
+            logoImg.src = settings.site_logo;
+            logoImg.parentElement.classList.remove("hidden");
+          }
+
+          const defaultIcon = document.getElementById("siteDefaultIcon");
+
+          if (defaultIcon) {
+            defaultIcon.classList.add("hidden");
+          }
+        }
+
+        // ==============================
+        // SITE FAVICON
+        // ==============================
+        if (settings.site_favicon) {
+          const favicon = document.getElementById("dynamicFavicon");
+
+          if (favicon) {
+            favicon.href = settings.site_favicon;
+          }
+        }
+
+      } catch (error) {
+        console.error("Gagal memuat settings dari Supabase:", error);
+      }
     }
 
-    function setupNewsletter() {
+        function setupNewsletter() {
       const form = document.querySelector('section form');
-      if (form) {
-        form.removeAttribute('onsubmit');
-        form.addEventListener('submit', async function(e) {
-          e.preventDefault();
-          const emailInput = form.querySelector('input[type="email"]');
-          const submitBtn = form.querySelector('button[type="submit"]');
-          if (!emailInput || !submitBtn) return;
 
-          const email = emailInput.value.trim();
-          const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-          if (!emailRegex.test(email)) {
-            alert("Silakan masukkan format email yang valid.");
+      if (!form) return;
+
+      form.removeAttribute('onsubmit');
+
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const emailInput = form.querySelector('input[type="email"]');
+        const submitBtn = form.querySelector('button[type="submit"]');
+
+        if (!emailInput || !submitBtn) return;
+
+        const email = emailInput.value.trim();
+
+        // Validasi email
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+        if (!emailRegex.test(email)) {
+          alert("Silakan masukkan format email yang valid.");
+          return;
+        }
+
+        const originalText = submitBtn.innerText;
+
+        submitBtn.disabled = true;
+        submitBtn.innerText = "GABUNG...";
+
+        try {
+
+          const { error } = await supabaseClient
+            .from('newsletter')
+            .insert([
+              {
+                email: email
+              }
+            ]);
+
+          if (error) {
+
+            // Email sudah terdaftar
+            if (error.code === '23505') {
+              alert("Email tersebut sudah terdaftar di newsletter kami.");
+            } else {
+              console.error("Supabase Newsletter Error:", error);
+              alert("Gagal berlangganan. Silakan coba kembali nanti.");
+            }
+
             return;
           }
 
-          const originalText = submitBtn.innerText;
-          submitBtn.disabled = true;
-          submitBtn.innerText = "GABUNG...";
+          alert("Terima kasih! Anda telah berhasil berlangganan newsletter kami.");
 
-          try {
-            const res = await fetch(API_URL, {
-              method: 'POST',
-              body: JSON.stringify({ action: 'addNewsletter', email: email })
-            });
-            const data = await res.json();
-            if (data.success) {
-              alert("Terima kasih! Anda telah berhasil berlangganan newsletter kami.");
-              emailInput.value = '';
-            } else {
-              alert(data.message || "Gagal berlangganan. Silakan coba kembali nanti.");
-            }
-          } catch (err) {
-            alert("Terjadi gangguan koneksi ke server.");
-          } finally {
-            submitBtn.disabled = false;
-            submitBtn.innerText = originalText;
-          }
-        });
-      }
+          emailInput.value = '';
+
+        } catch (error) {
+
+          console.error("Newsletter Error:", error);
+          alert("Terjadi gangguan koneksi ke server.");
+
+        } finally {
+
+          submitBtn.disabled = false;
+          submitBtn.innerText = originalText;
+
+        }
+      });
     }
 
     function setupMobileMenu() {
