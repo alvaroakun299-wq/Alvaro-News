@@ -600,16 +600,18 @@
         // Komentar masih menggunakan Apps Script untuk sementara
         loadComments(art.ID);
 
-        // Views masih menggunakan Apps Script untuk sementara
-        fetch(API_URL, {
-          method: 'POST',
-          body: JSON.stringify({
-            action: 'incrementView',
-            id: art.ID
+        // ==========================================
+        // INCREMENT VIEW - SUPABASE
+        // ==========================================
+        supabaseClient
+          .rpc('increment_article_view', {
+            article_id: art.ID
           })
-        }).catch(err => {
-          console.warn("Increment view lama gagal:", err);
-        });
+          .then(({ error }) => {
+            if (error) {
+              console.warn("Gagal menambah view:", error);
+            }
+          });
 
       } catch (err) {
 
