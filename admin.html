@@ -768,7 +768,7 @@
     }
 
     // =========================================================
-    // SAVE ARTICLE
+    // SAVE ARTICLE (FIXED ID NOT NULL)
     // =========================================================
 
     async function saveArticle(e) {
@@ -810,6 +810,8 @@
 
           if (error) throw error;
         } else {
+          // MEMBUAT ID DENGAN FORMAT STANDAR ALVARO NEWS (ART-timestamp-random)
+          articleData.id = `ART-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
           articleData.date = new Date().toISOString();
           articleData.views = 0;
 
