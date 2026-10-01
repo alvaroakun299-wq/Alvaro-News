@@ -303,7 +303,6 @@
           return false;
         }
 
-        // Validasi otoritatif ke Supabase Auth Server
         const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
 
         if (userError || !user) {
@@ -312,7 +311,6 @@
           return false;
         }
 
-        // Buka pelindung antarmuka jika sesi terbukti valid
         const loader = document.getElementById("authGuardLoader");
         if (loader) loader.remove();
 
@@ -325,12 +323,36 @@
       }
     }
 
-    // Listener otomatis jika sesi berakhir di tab lain
     supabaseClient.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT" || !session) {
         window.location.replace("login.html");
       }
     });
+
+    // =========================================================
+    // GENERATOR WAKTU REAL-TIME WIB (ASIA/JAKARTA)
+    // =========================================================
+
+    function getWibRealtimeISO() {
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Jakarta',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+
+      const parts = formatter.formatToParts(now);
+      const p = {};
+      parts.forEach(part => p[part.type] = part.value);
+
+      // Menghasilkan string ISO standar dengan offset +07:00 (WIB)
+      return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}+07:00`;
+    }
 
     // =========================================================
     // INITIALIZATION
@@ -374,20 +396,8 @@
 
     function formatHumanWibDate(dateStr) {
       if (!dateStr) return "-";
-      const str = String(dateStr).trim();
-      const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-
-      const customMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
-      if (customMatch) {
-        const year = customMatch[1];
-        const month = months[parseInt(customMatch[2], 10) - 1];
-        const day = parseInt(customMatch[3], 10);
-        const hour = customMatch[4] || "00";
-        const min = customMatch[5] || "00";
-        return `${day} ${month} ${year} • ${hour}:${min} WIB`;
-      }
-
       const d = new Date(dateStr);
+
       if (!isNaN(d.getTime())) {
         const formatter = new Intl.DateTimeFormat("id-ID", {
           timeZone: "Asia/Jakarta",
@@ -398,9 +408,10 @@
           minute: "2-digit",
           hour12: false
         });
-        return formatter.format(d) + " WIB";
+        return formatter.format(d).replace(/\./g, ':') + " WIB";
       }
-      return str;
+
+      return String(dateStr);
     }
 
     // =========================================================
@@ -768,7 +779,7 @@
     }
 
     // =========================================================
-    // SAVE ARTICLE (FIXED ID NOT NULL)
+    // SAVE ARTICLE (WAKTU REAL-TIME WIB AKTUAL)
     // =========================================================
 
     async function saveArticle(e) {
@@ -810,9 +821,11 @@
 
           if (error) throw error;
         } else {
-          // MEMBUAT ID DENGAN FORMAT STANDAR ALVARO NEWS (ART-timestamp-random)
+          // Format ID standar Alvaro News (ART-timestamp-random)
           articleData.id = `ART-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
-          articleData.date = new Date().toISOString();
+          
+          // MENGGUNAKAN WAKTU REAL-TIME WIB AKTUAL (Asia/Jakarta)
+          articleData.date = getWibRealtimeISO();
           articleData.views = 0;
 
           const { error } = await supabaseClient
