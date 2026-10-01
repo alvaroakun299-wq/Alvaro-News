@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CMS Admin Panel</title>
+  <title>CMS Admin Panel - Alvaro News</title>
   <link rel="icon" type="image/x-icon" id="dynamicFavicon" href="https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=64">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -62,7 +62,7 @@
   <aside class="w-64 bg-slate-950 text-gray-300 flex flex-col justify-between border-r border-slate-900 flex-shrink-0">
     <div class="p-6">
       <h2 class="text-white text-xl font-black tracking-tight flex items-center gap-2 mb-8">
-        <i class="fa-solid fa-gauge-high text-white"></i> Admin Panel
+        <i class="fa-solid fa-feather-pointed text-white"></i> Admin Panel
       </h2>
       <nav class="space-y-1">
         <button onclick="showSection('dashboard')" class="w-full text-left px-4 py-3 rounded-xl hover:bg-slate-900 hover:text-white flex items-center gap-3 transition text-xs uppercase tracking-wider font-semibold">
@@ -330,10 +330,10 @@
     });
 
     // =========================================================
-    // GENERATOR WAKTU REAL-TIME WIB (ASIA/JAKARTA)
+    // GENERATOR WAKTU REAL-TIME WIB (FORMAT STANDAR INDEX/ARTIKEL)
     // =========================================================
 
-    function getWibRealtimeISO() {
+    function getWibRealtimeString() {
       const now = new Date();
       const formatter = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Asia/Jakarta',
@@ -350,8 +350,39 @@
       const p = {};
       parts.forEach(part => p[part.type] = part.value);
 
-      // Menghasilkan string ISO standar dengan offset +07:00 (WIB)
-      return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}+07:00`;
+      // Menghasilkan "YYYY-MM-DD HH:mm:ss" yang ramah regex index/artikel
+      return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
+    }
+
+    // =========================================================
+    // DATE FORMAT WIB (SAMA PERSIS DENGAN INDEX.HTML & ARTIKEL.HTML)
+    // =========================================================
+
+    function formatHumanWibDate(dateStr) {
+      if (!dateStr) return "-";
+      const str = String(dateStr).trim();
+      const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
+      const customMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+      if (customMatch) {
+        const year = customMatch[1];
+        const month = months[parseInt(customMatch[2], 10) - 1];
+        const day = parseInt(customMatch[3], 10);
+        const hour = customMatch[4] || "00";
+        const min = customMatch[5] || "00";
+        return `${day} ${month} ${year} • ${hour}:${min} WIB`;
+      }
+
+      const d = new Date(str);
+      if (!isNaN(d.getTime())) {
+        const day = d.getDate();
+        const month = months[d.getMonth()];
+        const year = d.getFullYear();
+        const hour = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        return `${day} ${month} ${year} • ${hour}:${min} WIB`;
+      }
+      return str;
     }
 
     // =========================================================
@@ -388,30 +419,6 @@
       } finally {
         window.location.replace("login.html");
       }
-    }
-
-    // =========================================================
-    // DATE FORMAT WIB
-    // =========================================================
-
-    function formatHumanWibDate(dateStr) {
-      if (!dateStr) return "-";
-      const d = new Date(dateStr);
-
-      if (!isNaN(d.getTime())) {
-        const formatter = new Intl.DateTimeFormat("id-ID", {
-          timeZone: "Asia/Jakarta",
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false
-        });
-        return formatter.format(d).replace(/\./g, ':') + " WIB";
-      }
-
-      return String(dateStr);
     }
 
     // =========================================================
@@ -604,7 +611,7 @@
     }
 
     // =========================================================
-    // LOAD ARTICLES + CATEGORIES
+    // LOAD ARTICLES + CATEGORIES (SINKRON KE INDEX & KATEGORI)
     // =========================================================
 
     async function loadAllData() {
@@ -653,7 +660,7 @@
     }
 
     // =========================================================
-    // ARTICLE TABLE
+    // ARTICLE TABLE (DENGAN PREVIEW LANGSUNG KE ARTIKEL.HTML)
     // =========================================================
 
     function renderArticlesTable(articles) {
@@ -673,8 +680,12 @@
 
         return `
           <tr class="hover:bg-slate-50 transition">
-            <td class="px-6 py-4 font-bold text-slate-900">${escapeHtml(article.title)}</td>
-            <td class="px-6 py-4 text-gray-500 text-xs uppercase tracking-wider font-semibold">${escapeHtml(category)}</td>
+            <td class="px-6 py-4 font-bold text-slate-900 max-w-xs truncate" title="${escapeHtml(article.title)}">
+              ${escapeHtml(article.title)}
+            </td>
+            <td class="px-6 py-4 text-gray-500 text-xs uppercase tracking-wider font-semibold">
+              ${escapeHtml(category)}
+            </td>
             <td class="px-6 py-4">
               <span class="px-3 py-1 text-[10px] rounded-full font-bold uppercase tracking-wider ${
                 status === "Published" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
@@ -682,13 +693,21 @@
                 ${escapeHtml(status)}
               </span>
             </td>
-            <td class="px-6 py-4 text-gray-500 text-xs font-mono">${formatHumanWibDate(article.date)}</td>
-            <td class="px-6 py-4 text-gray-500 font-medium">${Number(article.views) || 0}</td>
-            <td class="px-6 py-4 text-center space-x-3">
-              <button onclick="editArticlePre('${article.id}')" title="Edit" class="text-slate-900 hover:text-black font-semibold">
+            <td class="px-6 py-4 text-gray-500 text-xs font-medium">
+              ${formatHumanWibDate(article.date)}
+            </td>
+            <td class="px-6 py-4 text-gray-500 font-medium">
+              ${Number(article.views) || 0}
+            </td>
+            <td class="px-6 py-4 text-center space-x-3 whitespace-nowrap">
+              <!-- Preview Langsung ke artikel.html -->
+              <a href="artikel.html?slug=${encodeURIComponent(article.slug)}" target="_blank" title="Lihat Artikel di Web" class="text-slate-400 hover:text-slate-900 transition font-semibold">
+                <i class="fa-regular fa-eye"></i>
+              </a>
+              <button onclick="editArticlePre('${article.id}')" title="Edit" class="text-slate-900 hover:text-black font-semibold transition">
                 <i class="fa-solid fa-pen-to-square"></i>
               </button>
-              <button onclick="deleteArticle('${article.id}')" title="Hapus" class="text-rose-600 hover:text-rose-900 font-semibold">
+              <button onclick="deleteArticle('${article.id}')" title="Hapus" class="text-rose-600 hover:text-rose-900 font-semibold transition">
                 <i class="fa-solid fa-trash"></i>
               </button>
             </td>
@@ -712,7 +731,7 @@
       const list = document.getElementById("catList");
       list.innerHTML = categories.map(cat =>
         `<li class="py-3 flex justify-between">
-          <span>${escapeHtml(cat.name)}</span>
+          <span class="font-medium text-slate-800">${escapeHtml(cat.name)}</span>
           <span class="text-gray-400 font-mono text-[10px]">${escapeHtml(cat.slug)}</span>
         </li>`
       ).join("");
@@ -779,7 +798,7 @@
     }
 
     // =========================================================
-    // SAVE ARTICLE (WAKTU REAL-TIME WIB AKTUAL)
+    // SAVE ARTICLE (SINKRON WAKTU WIB & FALLBACK THUMBNAIL)
     // =========================================================
 
     async function saveArticle(e) {
@@ -821,11 +840,11 @@
 
           if (error) throw error;
         } else {
-          // Format ID standar Alvaro News (ART-timestamp-random)
+          // ID Standar Alvaro News (ART-timestamp-random)
           articleData.id = `ART-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
           
-          // MENGGUNAKAN WAKTU REAL-TIME WIB AKTUAL (Asia/Jakarta)
-          articleData.date = getWibRealtimeISO();
+          // Tanggal Aktual WIB (YYYY-MM-DD HH:mm:ss)
+          articleData.date = getWibRealtimeString();
           articleData.views = 0;
 
           const { error } = await supabaseClient
