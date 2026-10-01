@@ -31,9 +31,14 @@
     .editor-content a { color: #0284c7; text-decoration: underline; }
     .editor-content hr { border: 0; border-top: 1px solid #e2e8f0; margin: 1.5rem 0; }
   </style>
-  
 </head>
 <body class="bg-[#fafafa] text-slate-800 flex h-screen overflow-hidden antialiased">
+
+  <!-- Pelindung Akses Sebelum Auth Valid (Mencegah FOUC) -->
+  <div id="authGuardLoader" class="fixed inset-0 bg-[#fafafa] z-[999] flex flex-col items-center justify-center">
+    <i class="fa-solid fa-spinner fa-spin text-4xl text-slate-900 mb-3"></i>
+    <p class="text-xs uppercase tracking-wider font-semibold text-gray-500">Memverifikasi sesi admin...</p>
+  </div>
 
   <!-- Floating Toast Container -->
   <div id="toastContainer" class="fixed top-6 right-6 z-50 flex flex-col gap-3 pointer-events-none"></div>
@@ -78,8 +83,12 @@
       </nav>
     </div>
     <div class="p-6 border-t border-slate-900 space-y-4">
-      <a href="index.html" class="text-xs uppercase tracking-wider font-semibold hover:text-white flex items-center gap-2 transition"><i class="fa-solid fa-arrow-left"></i> Lihat Website</a>
-      <button onclick="logout()" class="w-full text-left text-xs uppercase tracking-wider font-semibold text-rose-400 hover:text-rose-300 flex items-center gap-2 transition"><i class="fa-solid fa-power-off"></i> Keluar (Logout)</button>
+      <a href="index.html" class="text-xs uppercase tracking-wider font-semibold hover:text-white flex items-center gap-2 transition">
+        <i class="fa-solid fa-arrow-left"></i> Lihat Website
+      </a>
+      <button id="logoutBtn" onclick="logout()" class="w-full text-left text-xs uppercase tracking-wider font-semibold text-rose-400 hover:text-rose-300 flex items-center gap-2 transition">
+        <i class="fa-solid fa-power-off"></i> <span>Keluar (Logout)</span>
+      </button>
     </div>
   </aside>
 
@@ -233,7 +242,7 @@
       </div>
     </section>
 
-    <!-- 5. Section: Logo & Pengaturan Header Website (Additive) -->
+    <!-- 5. Section: Logo & Pengaturan Header Website -->
     <section id="site-settings-sec" class="hidden max-w-xl">
       <h1 class="text-3xl font-black text-slate-950 tracking-tight mb-8">Logo & Header Website</h1>
       <form onsubmit="saveSiteSettings(event)" class="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
@@ -282,193 +291,153 @@
 
   <script>
     // =========================================================
-    // AUTHENTICATION
+    // AUTHENTICATION GUARD
     // =========================================================
 
     async function checkAdminSession() {
-      const {
-        data: { session },
-        error
-      } = await supabaseClient.auth.getSession();
+      try {
+        const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
 
-      if (error || !session) {
-        window.location.href = "login.html";
+        if (sessionError || !session) {
+          window.location.replace("login.html");
+          return false;
+        }
+
+        // Validasi otoritatif ke Supabase Auth Server
+        const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+
+        if (userError || !user) {
+          await supabaseClient.auth.signOut();
+          window.location.replace("login.html");
+          return false;
+        }
+
+        // Buka pelindung antarmuka jika sesi terbukti valid
+        const loader = document.getElementById("authGuardLoader");
+        if (loader) loader.remove();
+
+        return true;
+
+      } catch (err) {
+        console.error("Auth check failed:", err);
+        window.location.replace("login.html");
         return false;
       }
-
-      return true;
     }
 
+    // Listener otomatis jika sesi berakhir di tab lain
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT" || !session) {
+        window.location.replace("login.html");
+      }
+    });
 
     // =========================================================
     // INITIALIZATION
     // =========================================================
 
     document.addEventListener("DOMContentLoaded", async function () {
-
-      const session = await checkAdminSession();
-
-      if (!session) return;
+      const isAuthValid = await checkAdminSession();
+      if (!isAuthValid) return;
 
       await loadStats();
       await loadAllData();
       await loadSettingsData();
-
     });
 
+    // =========================================================
+    // LOGOUT
+    // =========================================================
+
+    async function logout() {
+      const logoutBtn = document.getElementById("logoutBtn");
+      if (logoutBtn) {
+        logoutBtn.disabled = true;
+        logoutBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Keluar...</span>';
+      }
+
+      try {
+        const { error } = await supabaseClient.auth.signOut();
+        if (error) {
+          console.warn("SignOut Supabase peringatan:", error.message);
+        }
+      } catch (err) {
+        console.error("Gagal saat proses logout:", err);
+      } finally {
+        window.location.replace("login.html");
+      }
+    }
 
     // =========================================================
     // DATE FORMAT WIB
     // =========================================================
 
     function formatHumanWibDate(dateStr) {
-
       if (!dateStr) return "-";
-
       const str = String(dateStr).trim();
+      const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 
-      const months = [
-        "Januari",
-        "Februari",
-        "Maret",
-        "April",
-        "Mei",
-        "Juni",
-        "Juli",
-        "Agustus",
-        "September",
-        "Oktober",
-        "November",
-        "Desember"
-      ];
-
-      const customMatch =
-        str.match(
-          /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/
-        );
-
+      const customMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
       if (customMatch) {
-
         const year = customMatch[1];
-
-        const month =
-          months[
-            parseInt(customMatch[2], 10) - 1
-          ];
-
-        const day =
-          parseInt(customMatch[3], 10);
-
-        const hour =
-          customMatch[4] || "00";
-
-        const min =
-          customMatch[5] || "00";
-
+        const month = months[parseInt(customMatch[2], 10) - 1];
+        const day = parseInt(customMatch[3], 10);
+        const hour = customMatch[4] || "00";
+        const min = customMatch[5] || "00";
         return `${day} ${month} ${year} • ${hour}:${min} WIB`;
       }
 
       const d = new Date(dateStr);
-
       if (!isNaN(d.getTime())) {
-
-        const formatter =
-          new Intl.DateTimeFormat(
-            "id-ID",
-            {
-              timeZone: "Asia/Jakarta",
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false
-            }
-          );
-
+        const formatter = new Intl.DateTimeFormat("id-ID", {
+          timeZone: "Asia/Jakarta",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false
+        });
         return formatter.format(d) + " WIB";
       }
-
       return str;
     }
-
 
     // =========================================================
     // TOAST
     // =========================================================
 
     function showModernToast(type, title, message) {
+      const container = document.getElementById("toastContainer");
+      const toast = document.createElement("div");
 
-      const container =
-        document.getElementById("toastContainer");
+      toast.className = `pointer-events-auto flex items-start gap-3 p-4 rounded-2xl shadow-xl border text-sm max-w-sm w-full transition-all duration-300 transform translate-y-2 opacity-0 bg-white ${
+        type === "success" ? "border-emerald-100 text-slate-800" : "border-rose-100 text-slate-800"
+      }`;
 
-      const toast =
-        document.createElement("div");
-
-      toast.className =
-        `pointer-events-auto flex items-start gap-3 p-4 rounded-2xl shadow-xl border text-sm max-w-sm w-full transition-all duration-300 transform translate-y-2 opacity-0 bg-white ${
-          type === "success"
-            ? "border-emerald-100 text-slate-800"
-            : "border-rose-100 text-slate-800"
-        }`;
-
-      const iconColor =
-        type === "success"
-          ? "bg-emerald-50 text-emerald-600"
-          : "bg-rose-50 text-rose-600";
-
-      const iconClass =
-        type === "success"
-          ? "fa-solid fa-circle-check"
-          : "fa-solid fa-circle-xmark";
+      const iconColor = type === "success" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600";
+      const iconClass = type === "success" ? "fa-solid fa-circle-check" : "fa-solid fa-circle-xmark";
 
       toast.innerHTML = `
         <div class="w-9 h-9 ${iconColor} rounded-full flex items-center justify-center flex-shrink-0 text-base">
           <i class="${iconClass}"></i>
         </div>
-
         <div class="flex-grow pt-0.5">
-          <h4 class="font-bold text-xs uppercase tracking-wider text-slate-900">
-            ${title}
-          </h4>
-
-          <p class="text-xs text-gray-500 font-light mt-0.5 leading-relaxed">
-            ${message}
-          </p>
+          <h4 class="font-bold text-xs uppercase tracking-wider text-slate-900">${title}</h4>
+          <p class="text-xs text-gray-500 font-light mt-0.5 leading-relaxed">${message}</p>
         </div>
-
-        <button
-          onclick="this.parentElement.remove()"
-          class="text-gray-400 hover:text-slate-700 p-1 text-xs"
-        >
+        <button onclick="this.parentElement.remove()" class="text-gray-400 hover:text-slate-700 p-1 text-xs">
           <i class="fa-solid fa-xmark"></i>
         </button>
       `;
 
       container.appendChild(toast);
-
+      setTimeout(() => { toast.classList.remove("translate-y-2", "opacity-0"); }, 10);
       setTimeout(() => {
-        toast.classList.remove(
-          "translate-y-2",
-          "opacity-0"
-        );
-      }, 10);
-
-      setTimeout(() => {
-
-        toast.classList.add(
-          "opacity-0",
-          "translate-y-2"
-        );
-
-        setTimeout(
-          () => toast.remove(),
-          300
-        );
-
+        toast.classList.add("opacity-0", "translate-y-2");
+        setTimeout(() => toast.remove(), 300);
       }, 4000);
     }
-
 
     // =========================================================
     // CONFIRM MODAL
@@ -476,69 +445,28 @@
 
     let confirmCallback = null;
 
-    function showModernConfirm(
-      title,
-      message,
-      callback
-    ) {
-
-      document.getElementById(
-        "confirmModalTitle"
-      ).innerText = title;
-
-      document.getElementById(
-        "confirmModalDesc"
-      ).innerText = message;
-
+    function showModernConfirm(title, message, callback) {
+      document.getElementById("confirmModalTitle").innerText = title;
+      document.getElementById("confirmModalDesc").innerText = message;
       confirmCallback = callback;
-
-      document.getElementById(
-        "confirmModal"
-      ).classList.remove("hidden");
+      document.getElementById("confirmModal").classList.remove("hidden");
     }
 
-
     function closeConfirmModal(confirmed) {
-
-      document.getElementById(
-        "confirmModal"
-      ).classList.add("hidden");
-
-      if (
-        confirmed &&
-        typeof confirmCallback === "function"
-      ) {
+      document.getElementById("confirmModal").classList.add("hidden");
+      if (confirmed && typeof confirmCallback === "function") {
         confirmCallback();
       }
-
       confirmCallback = null;
     }
 
-
-    document
-      .getElementById("confirmModalBtn")
-      .addEventListener(
-        "click",
-        () => closeConfirmModal(true)
-      );
-
-
-    // =========================================================
-    // LOGOUT
-    // =========================================================
-
-   async function logout() {
-      await supabaseClient.auth.signOut();
-      window.location.href = "login.html";
-    }
-
+    document.getElementById("confirmModalBtn").addEventListener("click", () => closeConfirmModal(true));
 
     // =========================================================
     // SECTION NAVIGATION
     // =========================================================
 
     function showSection(sec) {
-
       [
         "dashboard-sec",
         "add-article-sec",
@@ -546,929 +474,132 @@
         "manage-categories-sec",
         "site-settings-sec"
       ].forEach(id => {
-
-        const element =
-          document.getElementById(id);
-
-        if (element) {
-          element.classList.add("hidden");
-        }
-
+        const element = document.getElementById(id);
+        if (element) element.classList.add("hidden");
       });
 
-      if (
-        sec === "add-article" &&
-        !document.getElementById("artId").value
-      ) {
-
-        document.getElementById(
-          "formTitle"
-        ).innerText =
-          "Tulis Artikel Baru";
+      if (sec === "add-article" && !document.getElementById("artId").value) {
+        document.getElementById("formTitle").innerText = "Tulis Artikel Baru";
       }
 
-      document
-        .getElementById(`${sec}-sec`)
-        .classList.remove("hidden");
+      const activeEl = document.getElementById(`${sec}-sec`);
+      if (activeEl) activeEl.classList.remove("hidden");
     }
-
 
     // =========================================================
     // SLUG GENERATOR
     // =========================================================
 
     function generateSlug() {
-
-      const title =
-        document.getElementById("title").value;
-
-      document.getElementById("slug").value =
-        title
-          .toLowerCase()
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^a-z0-9 -]/g, "")
-          .replace(/\s+/g, "-")
-          .replace(/-+/g, "-")
-          .replace(/^-|-$/g, "");
+      const title = document.getElementById("title").value;
+      document.getElementById("slug").value = title
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9 -]/g, "")
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "");
     }
-
 
     // =========================================================
     // RICH TEXT EDITOR
     // =========================================================
 
-    function executeEditorCmd(
-      command,
-      value = null
-    ) {
-
-      const editor =
-        document.getElementById(
-          "editorVisual"
-        );
-
+    function executeEditorCmd(command, value = null) {
+      const editor = document.getElementById("editorVisual");
       editor.focus();
-
-      document.execCommand(
-        command,
-        false,
-        value
-      );
-
+      document.execCommand(command, false, value);
       syncEditorContent();
     }
-
 
     function syncEditorContent() {
-
-      const visual =
-        document.getElementById(
-          "editorVisual"
-        );
-
-      document.getElementById(
-        "content"
-      ).value =
-        visual.innerHTML.trim();
+      const visual = document.getElementById("editorVisual");
+      document.getElementById("content").value = visual.innerHTML.trim();
     }
-
 
     function insertCustomLink() {
-
-      const visual =
-        document.getElementById(
-          "editorVisual"
-        );
-
+      const visual = document.getElementById("editorVisual");
       visual.focus();
-
-      let url =
-        prompt(
-          "Masukkan URL tautan:"
-        );
-
+      let url = prompt("Masukkan URL tautan:");
       if (!url) return;
-
       url = url.trim();
 
-      if (
-        url
-          .toLowerCase()
-          .startsWith("javascript:")
-      ) {
-
-        showModernToast(
-          "error",
-          "Tautan Ditolak",
-          "Format URL tidak diizinkan demi keamanan."
-        );
-
+      if (url.toLowerCase().startsWith("javascript:")) {
+        showModernToast("error", "Tautan Ditolak", "Format URL tidak diizinkan demi keamanan.");
         return;
       }
 
-      document.execCommand(
-        "createLink",
-        false,
-        url
-      );
-
+      document.execCommand("createLink", false, url);
       syncEditorContent();
     }
-
 
     function insertCustomTable() {
+      const rows = parseInt(prompt("Masukkan jumlah baris tabel:", "3"), 10);
+      const cols = parseInt(prompt("Masukkan jumlah kolom tabel:", "3"), 10);
 
-      const rows =
-        parseInt(
-          prompt(
-            "Masukkan jumlah baris tabel:",
-            "3"
-          ),
-          10
-        );
-
-      const cols =
-        parseInt(
-          prompt(
-            "Masukkan jumlah kolom tabel:",
-            "3"
-          ),
-          10
-        );
-
-      if (
-        !rows ||
-        !cols ||
-        rows < 1 ||
-        cols < 1 ||
-        rows > 50 ||
-        cols > 20
-      ) {
-
-        showModernToast(
-          "error",
-          "Format Tabel Salah",
-          "Jumlah baris dan kolom tidak valid."
-        );
-
+      if (!rows || !cols || rows < 1 || cols < 1 || rows > 50 || cols > 20) {
+        showModernToast("error", "Format Tabel Salah", "Jumlah baris dan kolom tidak valid.");
         return;
       }
 
-      let tableHtml =
-        '<div class="overflow-x-auto my-4">' +
-        '<table class="min-w-full border-collapse border border-gray-200 text-sm">' +
-        '<thead><tr class="bg-gray-50">';
-
-      for (
-        let c = 1;
-        c <= cols;
-        c++
-      ) {
-
-        tableHtml +=
-          `<th class="border border-gray-200 px-4 py-2 font-bold text-left">
-            Header ${c}
-          </th>`;
+      let tableHtml = '<div class="overflow-x-auto my-4"><table class="min-w-full border-collapse border border-gray-200 text-sm"><thead><tr class="bg-gray-50">';
+      for (let c = 1; c <= cols; c++) {
+        tableHtml += `<th class="border border-gray-200 px-4 py-2 font-bold text-left">Header ${c}</th>`;
       }
+      tableHtml += "</tr></thead><tbody>";
 
-      tableHtml +=
-        "</tr></thead><tbody>";
-
-      for (
-        let r = 2;
-        r <= rows;
-        r++
-      ) {
-
+      for (let r = 2; r <= rows; r++) {
         tableHtml += "<tr>";
-
-        for (
-          let c = 1;
-          c <= cols;
-          c++
-        ) {
-
-          tableHtml +=
-            `<td class="border border-gray-200 px-4 py-2">
-              Baris ${r} Kolom ${c}
-            </td>`;
+        for (let c = 1; c <= cols; c++) {
+          tableHtml += `<td class="border border-gray-200 px-4 py-2">Baris ${r} Kolom ${c}</td>`;
         }
-
         tableHtml += "</tr>";
       }
+      tableHtml += "</tbody></table></div><p><br></p>";
 
-      tableHtml +=
-        "</tbody></table></div><p><br></p>";
-
-      document
-        .getElementById("editorVisual")
-        .focus();
-
-      document.execCommand(
-        "insertHTML",
-        false,
-        tableHtml
-      );
-
+      document.getElementById("editorVisual").focus();
+      document.execCommand("insertHTML", false, tableHtml);
       syncEditorContent();
     }
-
 
     // =========================================================
     // DASHBOARD STATISTICS
     // =========================================================
 
     async function loadStats() {
-
       try {
+        const { count: totalArticles, error: articleError } = await supabaseClient
+          .from("articles")
+          .select("id", { count: "exact", head: true });
 
-        const {
-          count: totalArticles,
-          error: articleError
-        } =
-          await supabaseClient
-            .from("articles")
-            .select("id", {
-              count: "exact",
-              head: true
-            });
+        if (articleError) throw articleError;
 
-        if (articleError) {
-          throw articleError;
-        }
+        const { data: viewData, error: viewError } = await supabaseClient
+          .from("articles")
+          .select("views");
 
-        const {
-          data: viewData,
-          error: viewError
-        } =
-          await supabaseClient
-            .from("articles")
-            .select("views");
+        if (viewError) throw viewError;
 
-        if (viewError) {
-          throw viewError;
-        }
+        const totalViews = (viewData || []).reduce((total, article) => total + (Number(article.views) || 0), 0);
 
-        const totalViews =
-          (viewData || []).reduce(
-            (total, article) =>
-              total +
-              (Number(article.views) || 0),
-            0
-          );
-
-        document.getElementById(
-          "totalArt"
-        ).innerText =
-          totalArticles || 0;
-
-        document.getElementById(
-          "totalViews"
-        ).innerText =
-          totalViews;
+        document.getElementById("totalArt").innerText = totalArticles || 0;
+        document.getElementById("totalViews").innerText = totalViews;
 
       } catch (error) {
-
-        console.error(
-          "Error statistics:",
-          error
-        );
-
-        showModernToast(
-          "error",
-          "Gagal Memuat Statistik",
-          error.message
-        );
+        console.error("Error statistics:", error);
+        showModernToast("error", "Gagal Memuat Statistik", error.message);
       }
     }
-
 
     // =========================================================
     // LOAD ARTICLES + CATEGORIES
     // =========================================================
 
     async function loadAllData() {
-
       try {
-
-        const [
-          articleResponse,
-          categoryResponse
-        ] =
-          await Promise.all([
-
-            supabaseClient
-              .from("articles")
-              .select(`
-                id,
-                title,
-                slug,
-                summary,
-                content,
-                category_id,
-                thumbnail,
-                author,
-                date,
-                status,
-                views,
-                is_editor_choice,
-                categories (
-                  id,
-                  name,
-                  slug
-                )
-              `)
-              .order(
-                "date",
-                {
-                  ascending: false
-                }
-              ),
-
-            supabaseClient
-              .from("categories")
-              .select(
-                "id,name,slug"
-              )
-              .order(
-                "name",
-                {
-                  ascending: true
-                }
-              )
-          ]);
-
-        if (articleResponse.error) {
-          throw articleResponse.error;
-        }
-
-        if (categoryResponse.error) {
-          throw categoryResponse.error;
-        }
-
-        renderArticlesTable(
-          articleResponse.data || []
-        );
-
-        renderCategoriesSelect(
-          categoryResponse.data || []
-        );
-
-        renderCategoriesList(
-          categoryResponse.data || []
-        );
-
-      } catch (error) {
-
-        console.error(
-          "Gagal memuat data:",
-          error
-        );
-
-        showModernToast(
-          "error",
-          "Gagal Memuat Data",
-          error.message
-        );
-      }
-    }
-
-
-    // =========================================================
-    // ARTICLE TABLE
-    // =========================================================
-
-    function renderArticlesTable(
-      articles
-    ) {
-
-      const tbody =
-        document.getElementById(
-          "articlesTableBody"
-        );
-
-      if (
-        !articles ||
-        articles.length === 0
-      ) {
-
-        tbody.innerHTML = `
-          <tr>
-            <td
-              colspan="6"
-              class="px-6 py-12 text-center text-gray-400 text-sm"
-            >
-              Belum ada artikel.
-            </td>
-          </tr>
-        `;
-
-        return;
-      }
-
-      tbody.innerHTML =
-        articles
-          .map(article => {
-
-            const category =
-              article.categories?.name ||
-              "-";
-
-            const status =
-              article.status || "Draft";
-
-            return `
-              <tr class="hover:bg-slate-50 transition">
-
-                <td class="px-6 py-4 font-bold text-slate-900">
-                  ${escapeHtml(article.title)}
-                </td>
-
-                <td class="px-6 py-4 text-gray-500 text-xs uppercase tracking-wider font-semibold">
-                  ${escapeHtml(category)}
-                </td>
-
-                <td class="px-6 py-4">
-
-                  <span
-                    class="px-3 py-1 text-[10px] rounded-full font-bold uppercase tracking-wider ${
-                      status === "Published"
-                        ? "bg-emerald-50 text-emerald-700"
-                        : "bg-amber-50 text-amber-700"
-                    }"
-                  >
-                    ${escapeHtml(status)}
-                  </span>
-
-                </td>
-
-                <td class="px-6 py-4 text-gray-500 text-xs font-mono">
-                  ${formatHumanWibDate(article.date)}
-                </td>
-
-                <td class="px-6 py-4 text-gray-500 font-medium">
-                  ${Number(article.views) || 0}
-                </td>
-
-                <td class="px-6 py-4 text-center space-x-3">
-
-                  <button
-                    onclick="editArticlePre('${article.id}')"
-                    title="Edit"
-                    class="text-slate-900 hover:text-black font-semibold"
-                  >
-                    <i class="fa-solid fa-pen-to-square"></i>
-                  </button>
-
-                  <button
-                    onclick="deleteArticle('${article.id}')"
-                    title="Hapus"
-                    class="text-rose-600 hover:text-rose-900 font-semibold"
-                  >
-                    <i class="fa-solid fa-trash"></i>
-                  </button>
-
-                </td>
-
-              </tr>
-            `;
-          })
-          .join("");
-    }
-
-
-    // =========================================================
-    // CATEGORIES
-    // =========================================================
-
-    function renderCategoriesSelect(
-      categories
-    ) {
-
-      const select =
-        document.getElementById(
-          "category"
-        );
-
-      select.innerHTML =
-        categories
-          .map(
-            cat =>
-              `<option value="${cat.id}">
-                ${escapeHtml(cat.name)}
-              </option>`
-          )
-          .join("");
-    }
-
-
-    function renderCategoriesList(
-      categories
-    ) {
-
-      const list =
-        document.getElementById(
-          "catList"
-        );
-
-      list.innerHTML =
-        categories
-          .map(
-            cat =>
-              `<li class="py-3 flex justify-between">
-                <span>
-                  ${escapeHtml(cat.name)}
-                </span>
-
-                <span class="text-gray-400 font-mono text-[10px]">
-                  ${escapeHtml(cat.slug)}
-                </span>
-              </li>`
-          )
-          .join("");
-    }
-
-
-    // =========================================================
-    // FILE UPLOAD SUPABASE STORAGE
-    // =========================================================
-
-    async function uploadSingleFile(
-      fileInputId,
-      hiddenUrlId
-    ) {
-
-      const fileInput =
-        document.getElementById(
-          fileInputId
-        );
-
-      const hiddenInput =
-        document.getElementById(
-          hiddenUrlId
-        );
-
-      if (
-        !fileInput ||
-        fileInput.files.length === 0
-      ) {
-
-        return hiddenInput
-          ? hiddenInput.value
-          : "";
-      }
-
-      const file =
-        fileInput.files[0];
-
-      if (
-        file.size >
-        3 * 1024 * 1024
-      ) {
-
-        throw new Error(
-          "Ukuran berkas melebihi batas 3MB."
-        );
-      }
-
-      const allowedTypes = [
-        "image/jpeg",
-        "image/png",
-        "image/webp",
-        "image/gif",
-        "image/svg+xml"
-      ];
-
-      if (
-        !allowedTypes.includes(
-          file.type
-        )
-      ) {
-
-        throw new Error(
-          "Format gambar tidak didukung."
-        );
-      }
-
-      const extension =
-        file.name
-          .split(".")
-          .pop()
-          .toLowerCase();
-
-      const filename =
-        `${Date.now()}-${crypto.randomUUID()}.${extension}`;
-
-      const path =
-        `uploads/${filename}`;
-
-      const {
-        error: uploadError
-      } =
-        await supabaseClient
-          .storage
-          .from(STORAGE_BUCKET)
-          .upload(
-            path,
-            file,
-            {
-              cacheControl: "3600",
-              upsert: false,
-              contentType: file.type
-            }
-          );
-
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      const {
-        data: publicData
-      } =
-        supabaseClient
-          .storage
-          .from(STORAGE_BUCKET)
-          .getPublicUrl(path);
-
-      if (
-        !publicData ||
-        !publicData.publicUrl
-      ) {
-
-        throw new Error(
-          "URL gambar gagal dibuat."
-        );
-      }
-
-      if (hiddenInput) {
-        hiddenInput.value =
-          publicData.publicUrl;
-      }
-
-      return publicData.publicUrl;
-    }
-
-
-    async function handleImageUpload() {
-
-      document.getElementById(
-        "uploadStatus"
-      ).innerText =
-        "Mengunggah thumbnail...";
-
-      try {
-
-        const url =
-          await uploadSingleFile(
-            "thumbnailFile",
-            "thumbnailUrl"
-          );
-
-        document.getElementById(
-          "uploadStatus"
-        ).innerText =
-          "Gambar siap!";
-
-        return url;
-
-      } catch (error) {
-
-        document.getElementById(
-          "uploadStatus"
-        ).innerText =
-          "Gagal mengunggah gambar.";
-
-        throw error;
-      }
-    }
-
-
-    // =========================================================
-    // SAVE ARTICLE
-    // =========================================================
-
-    async function saveArticle(e) {
-
-      e.preventDefault();
-
-      syncEditorContent();
-
-      const contentValue =
-        document
-          .getElementById("content")
-          .value
-          .trim();
-
-      if (
-        !contentValue ||
-        contentValue === "<p><br></p>" ||
-        contentValue === "<br>"
-      ) {
-
-        showModernToast(
-          "error",
-          "Validasi Gagal",
-          "Isi artikel wajib diisi."
-        );
-
-        return;
-      }
-
-      const saveBtn =
-        document.getElementById(
-          "saveBtn"
-        );
-
-      saveBtn.disabled = true;
-      saveBtn.innerText =
-        "Menyimpan...";
-
-      try {
-
-        const imageUrl =
-          await handleImageUpload();
-
-        const id =
-          document.getElementById(
-            "artId"
-          ).value;
-
-        const isEdit =
-          id !== "";
-
-        const articleData = {
-
-          title:
-            document.getElementById(
-              "title"
-            ).value.trim(),
-
-          slug:
-            document.getElementById(
-              "slug"
-            ).value.trim(),
-
-          summary:
-            document.getElementById(
-              "summary"
-            ).value.trim(),
-
-          content:
-            contentValue,
-
-          category_id:
-            document.getElementById(
-              "category"
-            ).value || null,
-
-          author:
-            document.getElementById(
-              "author"
-            ).value.trim(),
-
-          status:
-            document.getElementById(
-              "status"
-            ).value,
-
-          is_editor_choice:
-            document.getElementById(
-              "isEditorChoice"
-            ).checked,
-
-          thumbnail:
-            imageUrl ||
-            "https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=500"
-        };
-
-
-        // =====================================================
-        // EDIT
-        // =====================================================
-
-        if (isEdit) {
-
-          const {
-            error
-          } =
-            await supabaseClient
-              .from("articles")
-              .update(articleData)
-              .eq("id", id);
-
-          if (error) {
-            throw error;
-          }
-
-        }
-
-
-        // =====================================================
-        // ADD
-        // =====================================================
-
-        else {
-
-          articleData.date =
-            new Date().toISOString();
-
-          articleData.views = 0;
-
-          const {
-            error
-          } =
-            await supabaseClient
-              .from("articles")
-              .insert(
-                articleData
-              );
-
-          if (error) {
-            throw error;
-          }
-        }
-
-
-        showModernToast(
-          "success",
-          "Berhasil",
-          isEdit
-            ? "Artikel berhasil diperbarui!"
-            : "Artikel baru berhasil disimpan!"
-        );
-
-
-        document
-          .getElementById(
-            "articleForm"
-          )
-          .reset();
-
-        document.getElementById(
-          "artId"
-        ).value = "";
-
-        document.getElementById(
-          "editorVisual"
-        ).innerHTML = "";
-
-        document.getElementById(
-          "content"
-        ).value = "";
-
-        document.getElementById(
-          "thumbnailUrl"
-        ).value = "";
-
-        document.getElementById(
-          "uploadStatus"
-        ).innerText =
-          "Kosongkan jika menggunakan link luar / tidak diganti.";
-
-        await loadAllData();
-        await loadStats();
-
-        showSection(
-          "manage-articles"
-        );
-
-      } catch (error) {
-
-        console.error(
-          "Save article error:",
-          error
-        );
-
-        showModernToast(
-          "error",
-          "Gagal Menyimpan",
-          error.message
-        );
-
-      } finally {
-
-        saveBtn.disabled = false;
-
-        saveBtn.innerText =
-          "Simpan Artikel";
-      }
-    }
-
-
-    // =========================================================
-    // EDIT ARTICLE
-    // =========================================================
-
-    async function editArticlePre(id) {
-
-      try {
-
-        const {
-          data: article,
-          error
-        } =
-          await supabaseClient
+        const [articleResponse, categoryResponse] = await Promise.all([
+          supabaseClient
             .from("articles")
             .select(`
               id,
@@ -1479,515 +610,464 @@
               category_id,
               thumbnail,
               author,
+              date,
               status,
-              is_editor_choice
+              views,
+              is_editor_choice,
+              categories (
+                id,
+                name,
+                slug
+              )
             `)
-            .eq("id", id)
-            .single();
+            .order("date", { ascending: false }),
 
-        if (error) {
-          throw error;
-        }
+          supabaseClient
+            .from("categories")
+            .select("id, name, slug")
+            .order("name", { ascending: true })
+        ]);
 
-        if (!article) {
-          throw new Error(
-            "Artikel tidak ditemukan."
-          );
-        }
+        if (articleResponse.error) throw articleResponse.error;
+        if (categoryResponse.error) throw categoryResponse.error;
 
-        document.getElementById(
-          "formTitle"
-        ).innerText =
-          "Edit Artikel";
-
-        document.getElementById(
-          "artId"
-        ).value =
-          article.id;
-
-        document.getElementById(
-          "title"
-        ).value =
-          article.title || "";
-
-        document.getElementById(
-          "slug"
-        ).value =
-          article.slug || "";
-
-        document.getElementById(
-          "summary"
-        ).value =
-          article.summary || "";
-
-        document.getElementById(
-          "content"
-        ).value =
-          article.content || "";
-
-        document.getElementById(
-          "editorVisual"
-        ).innerHTML =
-          article.content || "";
-
-        document.getElementById(
-          "category"
-        ).value =
-          article.category_id || "";
-
-        document.getElementById(
-          "author"
-        ).value =
-          article.author || "";
-
-        document.getElementById(
-          "status"
-        ).value =
-          article.status || "Draft";
-
-        document.getElementById(
-          "thumbnailUrl"
-        ).value =
-          article.thumbnail || "";
-
-        document.getElementById(
-          "isEditorChoice"
-        ).checked =
-          article.is_editor_choice === true;
-
-        document.getElementById(
-          "uploadStatus"
-        ).innerText =
-          article.thumbnail
-            ? "Thumbnail saat ini tersimpan. Pilih file baru jika ingin menggantinya."
-            : "Belum ada thumbnail.";
-
-        showSection(
-          "add-article"
-        );
+        renderArticlesTable(articleResponse.data || []);
+        renderCategoriesSelect(categoryResponse.data || []);
+        renderCategoriesList(categoryResponse.data || []);
 
       } catch (error) {
-
-        console.error(
-          "Edit article error:",
-          error
-        );
-
-        showModernToast(
-          "error",
-          "Gagal Memuat Artikel",
-          error.message
-        );
+        console.error("Gagal memuat data:", error);
+        showModernToast("error", "Gagal Memuat Data", error.message);
       }
     }
 
+    // =========================================================
+    // ARTICLE TABLE
+    // =========================================================
+
+    function renderArticlesTable(articles) {
+      const tbody = document.getElementById("articlesTableBody");
+      if (!articles || articles.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" class="px-6 py-12 text-center text-gray-400 text-sm">Belum ada artikel.</td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = articles.map(article => {
+        const category = article.categories?.name || "-";
+        const status = article.status || "Draft";
+
+        return `
+          <tr class="hover:bg-slate-50 transition">
+            <td class="px-6 py-4 font-bold text-slate-900">${escapeHtml(article.title)}</td>
+            <td class="px-6 py-4 text-gray-500 text-xs uppercase tracking-wider font-semibold">${escapeHtml(category)}</td>
+            <td class="px-6 py-4">
+              <span class="px-3 py-1 text-[10px] rounded-full font-bold uppercase tracking-wider ${
+                status === "Published" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+              }">
+                ${escapeHtml(status)}
+              </span>
+            </td>
+            <td class="px-6 py-4 text-gray-500 text-xs font-mono">${formatHumanWibDate(article.date)}</td>
+            <td class="px-6 py-4 text-gray-500 font-medium">${Number(article.views) || 0}</td>
+            <td class="px-6 py-4 text-center space-x-3">
+              <button onclick="editArticlePre('${article.id}')" title="Edit" class="text-slate-900 hover:text-black font-semibold">
+                <i class="fa-solid fa-pen-to-square"></i>
+              </button>
+              <button onclick="deleteArticle('${article.id}')" title="Hapus" class="text-rose-600 hover:text-rose-900 font-semibold">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    // =========================================================
+    // CATEGORIES
+    // =========================================================
+
+    function renderCategoriesSelect(categories) {
+      const select = document.getElementById("category");
+      select.innerHTML = categories.map(cat =>
+        `<option value="${cat.id}">${escapeHtml(cat.name)}</option>`
+      ).join("");
+    }
+
+    function renderCategoriesList(categories) {
+      const list = document.getElementById("catList");
+      list.innerHTML = categories.map(cat =>
+        `<li class="py-3 flex justify-between">
+          <span>${escapeHtml(cat.name)}</span>
+          <span class="text-gray-400 font-mono text-[10px]">${escapeHtml(cat.slug)}</span>
+        </li>`
+      ).join("");
+    }
+
+    // =========================================================
+    // FILE UPLOAD SUPABASE STORAGE
+    // =========================================================
+
+    async function uploadSingleFile(fileInputId, hiddenUrlId) {
+      const fileInput = document.getElementById(fileInputId);
+      const hiddenInput = document.getElementById(hiddenUrlId);
+
+      if (!fileInput || fileInput.files.length === 0) {
+        return hiddenInput ? hiddenInput.value : "";
+      }
+
+      const file = fileInput.files[0];
+      if (file.size > 3 * 1024 * 1024) {
+        throw new Error("Ukuran berkas melebihi batas 3MB.");
+      }
+
+      const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml"];
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error("Format gambar tidak didukung.");
+      }
+
+      const extension = file.name.split(".").pop().toLowerCase();
+      const filename = `${Date.now()}-${crypto.randomUUID()}.${extension}`;
+      const path = `uploads/${filename}`;
+
+      const { error: uploadError } = await supabaseClient.storage
+        .from(STORAGE_BUCKET)
+        .upload(path, file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: file.type
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicData } = supabaseClient.storage
+        .from(STORAGE_BUCKET)
+        .getPublicUrl(path);
+
+      if (!publicData || !publicData.publicUrl) {
+        throw new Error("URL gambar gagal dibuat.");
+      }
+
+      if (hiddenInput) hiddenInput.value = publicData.publicUrl;
+      return publicData.publicUrl;
+    }
+
+    async function handleImageUpload() {
+      document.getElementById("uploadStatus").innerText = "Mengunggah thumbnail...";
+      try {
+        const url = await uploadSingleFile("thumbnailFile", "thumbnailUrl");
+        document.getElementById("uploadStatus").innerText = "Gambar siap!";
+        return url;
+      } catch (error) {
+        document.getElementById("uploadStatus").innerText = "Gagal mengunggah gambar.";
+        throw error;
+      }
+    }
+
+    // =========================================================
+    // SAVE ARTICLE
+    // =========================================================
+
+    async function saveArticle(e) {
+      e.preventDefault();
+      syncEditorContent();
+
+      const contentValue = document.getElementById("content").value.trim();
+      if (!contentValue || contentValue === "<p><br></p>" || contentValue === "<br>") {
+        showModernToast("error", "Validasi Gagal", "Isi artikel wajib diisi.");
+        return;
+      }
+
+      const saveBtn = document.getElementById("saveBtn");
+      saveBtn.disabled = true;
+      saveBtn.innerText = "Menyimpan...";
+
+      try {
+        const imageUrl = await handleImageUpload();
+        const id = document.getElementById("artId").value;
+        const isEdit = id !== "";
+
+        const articleData = {
+          title: document.getElementById("title").value.trim(),
+          slug: document.getElementById("slug").value.trim(),
+          summary: document.getElementById("summary").value.trim(),
+          content: contentValue,
+          category_id: document.getElementById("category").value || null,
+          author: document.getElementById("author").value.trim(),
+          status: document.getElementById("status").value,
+          is_editor_choice: document.getElementById("isEditorChoice").checked,
+          thumbnail: imageUrl || "https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=500"
+        };
+
+        if (isEdit) {
+          const { error } = await supabaseClient
+            .from("articles")
+            .update(articleData)
+            .eq("id", id);
+
+          if (error) throw error;
+        } else {
+          articleData.date = new Date().toISOString();
+          articleData.views = 0;
+
+          const { error } = await supabaseClient
+            .from("articles")
+            .insert(articleData);
+
+          if (error) throw error;
+        }
+
+        showModernToast(
+          "success",
+          "Berhasil",
+          isEdit ? "Artikel berhasil diperbarui!" : "Artikel baru berhasil disimpan!"
+        );
+
+        document.getElementById("articleForm").reset();
+        document.getElementById("artId").value = "";
+        document.getElementById("editorVisual").innerHTML = "";
+        document.getElementById("content").value = "";
+        document.getElementById("thumbnailUrl").value = "";
+        document.getElementById("uploadStatus").innerText = "Kosongkan jika menggunakan link luar / tidak diganti.";
+
+        await loadAllData();
+        await loadStats();
+        showSection("manage-articles");
+
+      } catch (error) {
+        console.error("Save article error:", error);
+        showModernToast("error", "Gagal Menyimpan", error.message);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerText = "Simpan Artikel";
+      }
+    }
+
+    // =========================================================
+    // EDIT ARTICLE
+    // =========================================================
+
+    async function editArticlePre(id) {
+      try {
+        const { data: article, error } = await supabaseClient
+          .from("articles")
+          .select(`
+            id,
+            title,
+            slug,
+            summary,
+            content,
+            category_id,
+            thumbnail,
+            author,
+            status,
+            is_editor_choice
+          `)
+          .eq("id", id)
+          .single();
+
+        if (error) throw error;
+        if (!article) throw new Error("Artikel tidak ditemukan.");
+
+        document.getElementById("formTitle").innerText = "Edit Artikel";
+        document.getElementById("artId").value = article.id;
+        document.getElementById("title").value = article.title || "";
+        document.getElementById("slug").value = article.slug || "";
+        document.getElementById("summary").value = article.summary || "";
+        document.getElementById("content").value = article.content || "";
+        document.getElementById("editorVisual").innerHTML = article.content || "";
+        document.getElementById("category").value = article.category_id || "";
+        document.getElementById("author").value = article.author || "";
+        document.getElementById("status").value = article.status || "Draft";
+        document.getElementById("thumbnailUrl").value = article.thumbnail || "";
+        document.getElementById("isEditorChoice").checked = article.is_editor_choice === true;
+
+        document.getElementById("uploadStatus").innerText = article.thumbnail
+          ? "Thumbnail saat ini tersimpan. Pilih file baru jika ingin menggantinya."
+          : "Belum ada thumbnail.";
+
+        showSection("add-article");
+
+      } catch (error) {
+        console.error("Edit article error:", error);
+        showModernToast("error", "Gagal Memuat Artikel", error.message);
+      }
+    }
 
     // =========================================================
     // DELETE ARTICLE
     // =========================================================
 
     function deleteArticle(id) {
-
       showModernConfirm(
         "Hapus Artikel",
         "Apakah Anda yakin ingin menghapus artikel ini? Data yang dihapus tidak dapat dipulihkan.",
-
         async () => {
-
           try {
+            const { error } = await supabaseClient
+              .from("articles")
+              .delete()
+              .eq("id", id);
 
-            const {
-              error
-            } =
-              await supabaseClient
-                .from("articles")
-                .delete()
-                .eq("id", id);
+            if (error) throw error;
 
-            if (error) {
-              throw error;
-            }
-
-            showModernToast(
-              "success",
-              "Berhasil Dihapus",
-              "Artikel sukses dihapus dari database."
-            );
-
+            showModernToast("success", "Berhasil Dihapus", "Artikel sukses dihapus dari database.");
             await loadAllData();
             await loadStats();
 
           } catch (error) {
-
-            console.error(
-              "Delete error:",
-              error
-            );
-
-            showModernToast(
-              "error",
-              "Gagal",
-              error.message
-            );
+            console.error("Delete error:", error);
+            showModernToast("error", "Gagal", error.message);
           }
         }
       );
     }
-
 
     // =========================================================
     // ADD CATEGORY
     // =========================================================
 
     async function addCategory(e) {
-
       e.preventDefault();
-
-      const name =
-        document.getElementById(
-          "newCatName"
-        ).value.trim();
-
+      const name = document.getElementById("newCatName").value.trim();
       if (!name) return;
 
-      const slug =
-        name
-          .toLowerCase()
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^a-z0-9\s-]/g, "")
-          .replace(/\s+/g, "-")
-          .replace(/-+/g, "-")
-          .replace(/^-|-$/g, "");
+      const slug = name
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9\s-]/g, "")
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "");
 
       try {
+        const { error } = await supabaseClient
+          .from("categories")
+          .insert({ name: name, slug: slug });
 
-        const {
-          data,
-          error
-        } =
-          await supabaseClient
-            .from("categories")
-            .insert({
-              name: name,
-              slug: slug
-            })
-            .select()
-            .single();
+        if (error) throw error;
 
-        if (error) {
-          throw error;
-        }
-
-        showModernToast(
-          "success",
-          "Berhasil Ditambahkan",
-          `Kategori "${name}" berhasil dibuat.`
-        );
-
-        document.getElementById(
-          "newCatName"
-        ).value = "";
-
+        showModernToast("success", "Berhasil Ditambahkan", `Kategori "${name}" berhasil dibuat.`);
+        document.getElementById("newCatName").value = "";
         await loadAllData();
 
       } catch (error) {
-
-        console.error(
-          "Category error:",
-          error
-        );
-
-        if (
-          error.code ===
-          "23505"
-        ) {
-
-          showModernToast(
-            "error",
-            "Kategori Sudah Ada",
-            "Nama atau slug kategori tersebut sudah digunakan."
-          );
-
+        console.error("Category error:", error);
+        if (error.code === "23505") {
+          showModernToast("error", "Kategori Sudah Ada", "Nama atau slug kategori tersebut sudah digunakan.");
         } else {
-
-          showModernToast(
-            "error",
-            "Gagal",
-            error.message
-          );
+          showModernToast("error", "Gagal", error.message);
         }
       }
     }
-
 
     // =========================================================
     // LOAD SETTINGS
     // =========================================================
 
     async function loadSettingsData() {
-
       try {
+        const { data, error } = await supabaseClient
+          .from("settings")
+          .select("key,value")
+          .in("key", ["site_name", "site_logo", "site_favicon"]);
 
-        const {
-          data,
-          error
-        } =
-          await supabaseClient
-            .from("settings")
-            .select(
-              "key,value"
-            )
-            .in(
-              "key",
-              [
-                "site_name",
-                "site_logo",
-                "site_favicon"
-              ]
-            );
+        if (error) throw error;
 
-        if (error) {
-          throw error;
+        const settings = Object.fromEntries(
+          (data || []).map(item => [item.key, item.value])
+        );
+
+        if (settings.site_name) {
+          document.getElementById("settingSiteName").value = settings.site_name;
         }
 
-        const settings =
-          Object.fromEntries(
-            (data || []).map(
-              item => [
-                item.key,
-                item.value
-              ]
-            )
-          );
-
-
-        if (
-          settings.site_name
-        ) {
-
-          document.getElementById(
-            "settingSiteName"
-          ).value =
-            settings.site_name;
+        if (settings.site_logo) {
+          document.getElementById("settingSiteLogo").value = settings.site_logo;
+          document.getElementById("logoPreviewBox").innerHTML =
+            `<img src="${escapeAttribute(settings.site_logo)}" class="max-h-full max-w-full object-contain">`;
         }
 
-
-        if (
-          settings.site_logo
-        ) {
-
-          document.getElementById(
-            "settingSiteLogo"
-          ).value =
-            settings.site_logo;
-
-          document.getElementById(
-            "logoPreviewBox"
-          ).innerHTML =
-            `<img
-              src="${escapeAttribute(settings.site_logo)}"
-              class="max-h-full max-w-full object-contain"
-            >`;
-        }
-
-
-        if (
-          settings.site_favicon
-        ) {
-
-          document.getElementById(
-            "settingSiteFavicon"
-          ).value =
-            settings.site_favicon;
-
-          document.getElementById(
-            "faviconPreviewBox"
-          ).innerHTML =
-            `<img
-              src="${escapeAttribute(settings.site_favicon)}"
-              class="max-h-full max-w-full object-contain"
-            >`;
-
-          document.getElementById(
-            "dynamicFavicon"
-          ).href =
-            settings.site_favicon;
+        if (settings.site_favicon) {
+          document.getElementById("settingSiteFavicon").value = settings.site_favicon;
+          document.getElementById("faviconPreviewBox").innerHTML =
+            `<img src="${escapeAttribute(settings.site_favicon)}" class="max-h-full max-w-full object-contain">`;
+          document.getElementById("dynamicFavicon").href = settings.site_favicon;
         }
 
       } catch (error) {
-
-        console.error(
-          "Error loading settings:",
-          error
-        );
+        console.error("Error loading settings:", error);
       }
     }
-
 
     // =========================================================
     // REMOVE LOGO
     // =========================================================
 
     function removeLogo() {
-
-      document.getElementById(
-        "settingSiteLogo"
-      ).value = "";
-
-      document.getElementById(
-        "logoFile"
-      ).value = "";
-
-      document.getElementById(
-        "logoPreviewBox"
-      ).innerHTML =
-        '<span class="text-xs text-gray-400">Tidak ada</span>';
+      document.getElementById("settingSiteLogo").value = "";
+      document.getElementById("logoFile").value = "";
+      document.getElementById("logoPreviewBox").innerHTML = '<span class="text-xs text-gray-400">Tidak ada</span>';
     }
-
 
     // =========================================================
     // SAVE SETTINGS
     // =========================================================
 
     async function saveSiteSettings(e) {
-
       e.preventDefault();
-
-      const saveBtn =
-        document.getElementById(
-          "saveSettingsBtn"
-        );
-
+      const saveBtn = document.getElementById("saveSettingsBtn");
       saveBtn.disabled = true;
-
-      saveBtn.innerText =
-        "Menyimpan...";
+      saveBtn.innerText = "Menyimpan...";
 
       try {
+        let logoUrl = await uploadSingleFile("logoFile", "settingSiteLogo");
+        let faviconUrl = await uploadSingleFile("faviconFile", "settingSiteFavicon");
 
-        let logoUrl =
-          await uploadSingleFile(
-            "logoFile",
-            "settingSiteLogo"
-          );
-
-        let faviconUrl =
-          await uploadSingleFile(
-            "faviconFile",
-            "settingSiteFavicon"
-          );
-
-
-        if (
-          !faviconUrl &&
-          logoUrl
-        ) {
-
-          faviconUrl =
-            logoUrl;
+        if (!faviconUrl && logoUrl) {
+          faviconUrl = logoUrl;
         }
-
 
         const settings = {
-
-          site_name:
-            document.getElementById(
-              "settingSiteName"
-            ).value.trim(),
-
-          site_logo:
-            logoUrl || "",
-
-          site_favicon:
-            faviconUrl || ""
+          site_name: document.getElementById("settingSiteName").value.trim(),
+          site_logo: logoUrl || "",
+          site_favicon: faviconUrl || ""
         };
 
+        for (const [key, value] of Object.entries(settings)) {
+          const { error } = await supabaseClient
+            .from("settings")
+            .upsert({ key: key, value: value }, { onConflict: "key" });
 
-        // Upsert satu per satu karena
-        // primary key settings adalah "key"
-
-        for (
-          const [key, value]
-          of Object.entries(settings)
-        ) {
-
-          const {
-            error
-          } =
-            await supabaseClient
-              .from("settings")
-              .upsert(
-                {
-                  key: key,
-                  value: value
-                },
-                {
-                  onConflict: "key"
-                }
-              );
-
-          if (error) {
-            throw error;
-          }
+          if (error) throw error;
         }
 
-
-        showModernToast(
-          "success",
-          "Berhasil Disimpan",
-          "Pengaturan logo dan header berhasil diperbarui!"
-        );
-
-
+        showModernToast("success", "Berhasil Disimpan", "Pengaturan logo dan header berhasil diperbarui!");
         await loadSettingsData();
 
-
-        // Update favicon langsung
         if (faviconUrl) {
-
-          document.getElementById(
-            "dynamicFavicon"
-          ).href =
-            faviconUrl;
+          document.getElementById("dynamicFavicon").href = faviconUrl;
         }
 
       } catch (error) {
-
-        console.error(
-          "Save settings error:",
-          error
-        );
-
-        showModernToast(
-          "error",
-          "Gagal",
-          error.message
-        );
-
+        console.error("Save settings error:", error);
+        showModernToast("error", "Gagal", error.message);
       } finally {
-
         saveBtn.disabled = false;
-
-        saveBtn.innerText =
-          "Simpan Perubahan";
+        saveBtn.innerText = "Simpan Perubahan";
       }
     }
-
 
     // =========================================================
     // SECURITY HELPERS
     // =========================================================
 
     function escapeHtml(value) {
-
-      if (
-        value === null ||
-        value === undefined
-      ) {
-        return "";
-      }
-
+      if (value === null || value === undefined) return "";
       return String(value)
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
@@ -1996,12 +1076,9 @@
         .replace(/'/g, "&#039;");
     }
 
-
     function escapeAttribute(value) {
-
       return escapeHtml(value);
     }
-
   </script>
 </body>
 </html>
